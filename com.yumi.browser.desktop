@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Yumi Browser
+Comment=WebAssembly browser runtime with GPU acceleration
+Exec=yumibrowser %f
+Icon=com.yumi.browser
+Terminal=false
+Categories=Development;WebBrowser;
+StartupWMClass=yumibrowser
+MimeType=application/wasm;

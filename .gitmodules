@@ -1,0 +1,51 @@
+[submodule "deps/wasmer"]
+	path = deps/wasmer
+	url = https://github.com/wasmerio/wasmer.git
+[submodule "deps/sdl"]
+	path = deps/sdl
+	url = https://github.com/libsdl-org/SDL.git
+[submodule "deps/duckdb"]
+	path = deps/duckdb
+	url = https://github.com/duckdb/duckdb.git
+[submodule "deps/clay"]
+	path = deps/clay
+	url = https://github.com/nicbarker/clay.git
+[submodule "deps/icu"]
+	path = deps/icu
+	url = https://github.com/unicode-org/icu.git
+[submodule "deps/freetype"]
+	path = deps/freetype
+	url = https://github.com/freetype/freetype
+[submodule "deps/dawn"]
+	path = deps/dawn
+	url = https://dawn.googlesource.com/dawn
+[submodule "deps/slang"]
+	path = deps/slang
+	url = https://github.com/shader-slang/slang.git
+[submodule "deps/harfbuzz"]
+	path = deps/harfbuzz
+	url = https://github.com/harfbuzz/harfbuzz.git
+[submodule "deps/openssl"]
+	path = deps/openssl
+	url = https://github.com/openssl/openssl.git
+[submodule "deps/oqs-provider"]
+	path = deps/oqs-provider
+	url = https://github.com/open-quantum-safe/oqs-provider.git
+[submodule "deps/libjuice"]
+	path = deps/libjuice
+	url = https://github.com/paullouisageneau/libjuice.git
+[submodule "deps/ffmpeg"]
+	path = deps/ffmpeg
+	url = https://git.ffmpeg.org/ffmpeg.git
+[submodule "deps/libRaw"]
+	path = deps/libRaw
+	url = https://github.com/LibRaw/LibRaw.git
+[submodule "deps/bzip2"]
+	path = deps/bzip2
+	url = https://gitlab.com/bzip2/bzip2.git
+[submodule "deps/libjpeg-turbo"]
+	path = deps/libjpeg-turbo
+	url = https://github.com/libjpeg-turbo/libjpeg-turbo.git
+[submodule "deps/doxygen-awesome-css"]
+	path = deps/doxygen-awesome-css
+	url = https://github.com/jothepro/doxygen-awesome-css.git

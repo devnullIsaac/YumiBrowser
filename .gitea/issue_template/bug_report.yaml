@@ -1,0 +1,84 @@
+name: Bug report
+about: Report a defect in Yumi Browser
+title: "[bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report.
+
+        **If you believe this issue has security implications, do NOT file it
+        here.** Read [`SECURITY.md`](../../SECURITY.md) and report it
+        privately to the address listed there.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight
+      options:
+        - label: I have read `SECURITY.md` and confirmed this is not a security issue.
+          required: true
+        - label: I have searched existing issues and this is not a duplicate.
+          required: true
+  - type: input
+    id: version
+    attributes:
+      label: Yumi Browser version
+      description: Output of `git rev-parse HEAD` or the release tag you are running.
+      placeholder: "e.g. v0.1.0 or commit abc1234"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: "e.g. Fedora 42, Debian 13, Arch (kernel 6.9)"
+    validations:
+      required: true
+  - type: dropdown
+    id: build_mode
+    attributes:
+      label: Build mode
+      options:
+        - debug (default)
+        - release (--release)
+        - flatpak (--flatpak)
+        - other / unsure
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Step-by-step. Minimal repros get fixed faster.
+      placeholder: |
+        1. Run `./yumibrowser`
+        2. ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / backtrace
+      description: |
+        Paste relevant stderr output. For crashes, prefer a backtrace from a
+        debug build. Use code fences. Please do not paste screenshots of text.
+      render: shell
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context

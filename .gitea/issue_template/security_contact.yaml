@@ -1,0 +1,38 @@
+name: Security contact request
+about: Use this ONLY if you cannot reach the maintainer by email and need a secure channel. Do NOT include exploit details.
+title: "[security-contact] request for secure channel"
+labels:
+  - security
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Stop and read this first
+
+        **Do not file vulnerability details in this issue.** Public issues
+        on Codeberg are world-readable.
+
+        The correct way to report a vulnerability is described in
+        [`SECURITY.md`](../../SECURITY.md). Use this template only if you
+        could not reach the maintainer by email and need to request a
+        secure channel.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight
+      options:
+        - label: I have read `SECURITY.md`.
+          required: true
+        - label: I will NOT post vulnerability details, repro steps, or exploit code in this issue.
+          required: true
+        - label: I tried to email the address in `SECURITY.md` first.
+          required: true
+  - type: textarea
+    id: contact
+    attributes:
+      label: How can the maintainer reach you?
+      description: |
+        Email, Matrix handle, XMPP, etc. Do NOT describe the vulnerability
+        here. The maintainer will reply with a secure channel.
+    validations:
+      required: true

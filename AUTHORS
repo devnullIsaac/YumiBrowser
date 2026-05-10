@@ -1,0 +1,38 @@
+Yumi Browser — Authors and Contributors
+=======================================
+
+Yumi Browser is a deliberately solo-developer project. The maintainer
+listed below is the sole author of the original code in this repository.
+External code contributions are not accepted at this time; see
+CONTRIBUTING.md for the rationale.
+
+Maintainer
+----------
+
+Isaac (DevNullIsaac on Codeberg) <devnullisaac@gmail.com>
+    Project lead and sole developer. Original author of the host
+    runtime, the cryptographic glue, the group registrar, the
+    peer-to-peer network stack, and the WebAssembly sandbox host.
+
+Third-Party Code Authors
+------------------------
+
+Yumi Browser vendors source files written by other authors. Their work
+is acknowledged here as a matter of attribution; they are not
+contributors to Yumi Browser itself, and inclusion in this list does
+not imply endorsement by them of this project. See THIRD_PARTY.md for
+the full record and licensing.
+
+  - The Skein team (Bruce Schneier, Niels Ferguson, Stefan Lucks,
+    Doug Whiting, Mihir Bellare, Tadayoshi Kohno, Jon Callas,
+    Jesse Walker) — Skein-1024 / Threefish-1024 reference
+    implementation, public domain.
+  - Dr Brian Gladman — portable endian/type headers
+    (`src/crypto/brg_endian.h`, `src/crypto/brg_types.h`).
+
+Yumi Browser additionally builds on a substantial set of upstream
+dependencies under `deps/` (OpenSSL, oqs-provider, SDL, Wasmer, Dawn,
+DuckDB, Slang, FFmpeg, FreeType, HarfBuzz, ICU, LibRaw, libjuice,
+bzip2, libjpeg-turbo, and others). The authors and contributors of
+those projects are not listed here individually; their authorship is
+recorded in their own repositories.

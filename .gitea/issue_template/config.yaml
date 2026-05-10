@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability (private)
+    url: https://codeberg.org/DevNullIsaac/YumiBrowser/src/branch/main/SECURITY.md
+    about: Vulnerabilities must be reported privately. See SECURITY.md for the contact address. Do NOT open a public issue.
+  - name: Question / discussion
+    url: https://codeberg.org/DevNullIsaac/YumiBrowser/src/branch/main/README.md
+    about: For general questions, please read the README first. Open a regular issue only if your question relates to a bug or a feature request.

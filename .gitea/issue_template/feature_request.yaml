@@ -1,0 +1,54 @@
+name: Feature request
+about: Propose an enhancement to Yumi Browser
+title: "[feature] "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Yumi Browser has a deliberately narrow scope. Please read the
+        "Scope: Browser vs. WebApp Pipeline" section of the README before
+        opening a feature request. Webapp-side features belong in the
+        separate webapp-pipeline project, not here.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight
+      options:
+        - label: I have read the README and this request is in scope for the browser, not for the webapp pipeline.
+          required: true
+        - label: I have searched existing issues and this is not a duplicate.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What concrete problem are you trying to solve? Who has it?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: |
+        Describe the change. If it touches the WebAssembly API surface, the
+        wire protocol, or the sandbox boundary, say so explicitly and
+        explain why the addition is necessary.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: impact
+    attributes:
+      label: Stability / security impact
+      description: |
+        Does this change widen the host capability surface? Does it affect
+        forward compatibility for groups already formed at 1.0?
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
