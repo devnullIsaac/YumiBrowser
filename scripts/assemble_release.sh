@@ -185,20 +185,15 @@ if ! $SLANG_STDMOD_COLLECTED; then
     warn "Slang standard modules not found — shader-bind may fail with 'module load failed'"
 fi
 
-# ---- mato_dashboard WASM ----
-step "Building mato_dashboard WASM"
-MATO_BUILD_SH="${PROJECT_ROOT}/webapps/mato_dashboard/build.sh"
-
-if [ -f "${MATO_BUILD_SH}" ]; then
-    chmod +x "${MATO_BUILD_SH}"
-    bash "${MATO_BUILD_SH}"
-    if [ -f "${RELEASE_DIR}/dashboard/mato_dashboard.wasm" ]; then
-        ok "mato_dashboard.wasm built (release/dashboard/)"
-    else
-        fail "mato_dashboard build script ran but mato_dashboard.wasm not found in ${RELEASE_DIR}/dashboard/"
-    fi
+# ---- demo.wasm (first-run default webapp) ----
+step "Staging demo webapp"
+DEMO_SRC="${PROJECT_ROOT}/demo/demo.wasm"
+if [ -f "${DEMO_SRC}" ]; then
+    mkdir -p "${RELEASE_DIR}/demo"
+    cp "${DEMO_SRC}" "${RELEASE_DIR}/demo/demo.wasm"
+    ok "Copied demo/demo.wasm"
 else
-    warn "${MATO_BUILD_SH} not found — skipping dashboard WASM build"
+    warn "${DEMO_SRC} not found — skipping demo webapp staging"
 fi
 
 # ---- Icons ----

@@ -1,20 +1,3 @@
-/*
-    Dashboard WebAssembly Runtime
-    Copyright (C) 2026  DevNullIsaac
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
-
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-*/
 /**
  * @file dashboard_runtime.c
  * @brief Dashboard supervisor runtime — owns the window, manages
@@ -552,6 +535,18 @@ void dashboard_layout_split_v(DashboardRuntime *d,
 /* ================================================================== */
 /*  Frame rendering                                                    */
 /* ================================================================== */
+
+void dashboard_tick(DashboardRuntime *d) {
+    /* Drive per-slot maintenance that must run faster than the render
+     * frame — currently just topping up the SDL audio stream backing
+     * each webapp's media playback.  Kept here (rather than in main)
+     * so the host loop doesn't need to reach into WebAppRuntime. */
+    for (uint32_t i = 0; i < d->slot_count; i++) {
+        WebAppSlot *slot = &d->slots[i];
+        if (slot->rt)
+            webapp_runtime_pump_audio(slot->rt);
+    }
+}
 
 void dashboard_frame(DashboardRuntime *d) {
     if (!gpu_frame_begin(d->gpu)) return;

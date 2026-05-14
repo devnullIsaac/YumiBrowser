@@ -144,6 +144,64 @@ component of Yumi Browser.
 
 ---
 
+## 1.4 *Wing It!* video content (preview video and demo webapp)
+
+**Where it appears:**
+
+- `Preview.webm` at the root of this repository — a short functional
+  preview of Yumi Browser that includes excerpts from the Blender
+  Foundation's *Wing It!* open movie.
+- The demo WebAssembly application staged at `release/demo/demo.wasm`
+  (built from sources outside this repository and shipped only as a
+  first-run demonstration), which uses *Wing It!* footage as sample
+  media to exercise the video pipeline.
+
+**Origin:** *Wing It!*, an open movie produced by the Blender Studio /
+Blender Foundation (https://studio.blender.org/projects/wing-it/).
+
+**License:** **Creative Commons Attribution 4.0 International
+(CC BY 4.0)**, https://creativecommons.org/licenses/by/4.0/.
+
+Per the Blender Studio licensing notice:
+
+> The work of the *Wing It!* project is licensed under the Creative
+> Commons Attribution 4.0 license. […] In short, this means you can
+> freely reuse and distribute this content, also commercially, as long
+> as you include proper attribution.
+>
+> The attribution is (if not specifically mentioned otherwise):
+>
+> (CC) Blender Foundation | studio.blender.org
+>
+> Excluded from the Creative Commons license is: all logos on this
+> website (including the Blender logo, *Wing It!* logo, Creative Commons
+> logo, sponsor logos) and associated trademarks.
+
+**Attribution (as required by CC BY 4.0):**
+
+> *Wing It!* — (CC) Blender Foundation | studio.blender.org —
+> used under CC BY 4.0.
+
+**Modifications by Yumi Browser:** the source video has been trimmed,
+re-encoded, and (in the demo webapp case) framed inside the Yumi Browser
+UI for demonstration purposes. No claim of authorship over the original
+*Wing It!* footage is made; all creative credit belongs to the Blender
+Foundation and the *Wing It!* production team.
+
+**Trademarks:** the Blender logo, the *Wing It!* logo, and any
+associated Blender Foundation trademarks are **not** licensed under
+CC BY 4.0 and are **not** used by Yumi Browser to endorse this product.
+The attribution above refers to the audiovisual content only.
+
+**Compatibility with AGPL-3.0:** CC BY 4.0 is a content license, not a
+software license; it applies to the *Wing It!* media bundled alongside
+Yumi Browser (in `Preview.webm` and, when present, in the demo
+webapp's media assets), not to the AGPL-3.0 source code of Yumi Browser
+itself. The two licenses apply to disjoint sets of files within this
+distribution and do not conflict.
+
+---
+
 ## 2. Combined-Work Licensing
 
 The combined work — i.e., the Yumi Browser executable produced by building

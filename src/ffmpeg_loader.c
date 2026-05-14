@@ -1,21 +1,4 @@
 /*
-    FFMpeg Loader for WebAssembly Runtimes
-    Copyright (C) 2026  DevNullIsaac
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
-
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-*/
-/*
  * ffmpeg_loader.c
  *
  * Runtime dynamic loader for FFmpeg libraries.
@@ -281,6 +264,7 @@ void (*dyn_avcodec_free_context)(AVCodecContext **avctx) = NULL;
 AVPacket *(*dyn_av_packet_alloc)(void) = NULL;
 void      (*dyn_av_packet_free)(AVPacket **pkt) = NULL;
 void      (*dyn_av_packet_unref)(AVPacket *pkt) = NULL;
+void      (*dyn_av_packet_move_ref)(AVPacket *dst, AVPacket *src) = NULL;
 
 /* ================================================================== */
 /*  Function pointer definitions — libswscale                         */
@@ -411,6 +395,7 @@ int ffmpeg_loader_init(void)
     LOAD(handles.avcodec, av_packet_alloc);
     LOAD(handles.avcodec, av_packet_free);
     LOAD(handles.avcodec, av_packet_unref);
+    LOAD(handles.avcodec, av_packet_move_ref);
 
     /* -------------------------------------------------------------- */
     /*  4. libswscale                                                  */
@@ -492,6 +477,7 @@ void ffmpeg_loader_deinit(void)
     dyn_av_packet_alloc               = NULL;
     dyn_av_packet_free                = NULL;
     dyn_av_packet_unref               = NULL;
+    dyn_av_packet_move_ref            = NULL;
 
     dyn_sws_getContext   = NULL;
     dyn_sws_scale        = NULL;

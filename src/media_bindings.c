@@ -1,22 +1,4 @@
 /*
-    Unified WASM-Callable Image / Video / Audio Decoder Bindings
-    Copyright (C) 2026  DevNullIsaac
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
-
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-*/
-
-/*
  * media_bindings.c
  *
  * Unified WASM-callable image / video / audio decoder bindings.
@@ -106,6 +88,13 @@ typedef struct MediaContext {
     AVFrame         *frame;
     AVRational       time_base;
     int64_t          position_pts;
+    int64_t          rendered_pts;  /* PTS of the last video frame actually
+                                       displayed (set only by
+                                       decode_next_video_frame). position_pts
+                                       is also bumped when pump_audio_buffer
+                                       speculatively decodes video packets,
+                                       so it can run far ahead of what's on
+                                       screen and is unsafe for A/V sync. */
     bool             is_hw;
     struct SwsContext *sws_ctx;
     uint8_t         *rgba_buf;
@@ -125,7 +114,27 @@ typedef struct MediaContext {
     SDL_AudioStream *sdl_stream;
     float            audio_volume;
     bool             audio_muted;
+    bool             paused;             /* when true, pump_audio_buffer skips
+                                            this context so audio_clock_pts
+                                            stays frozen during pause */
     int64_t          audio_clock_pts;
+
+    /* Video packet queue.
+     *
+     * pump_audio_buffer reads packets sequentially from the container to
+     * keep the SDL audio stream topped up. Container packets are
+     * interleaved (audio + video), so the audio pump frequently
+     * encounters video packets — these used to be decoded and
+     * discarded, which meant the user never saw most video frames
+     * (causing choppy ~15 fps video alongside smooth audio).
+     *
+     * We now stash those video packets in this ring buffer so
+     * decode_next_video_frame can consume them in order, ensuring no
+     * video frame is dropped on the read path. */
+#define MB_VPKT_QUEUE_CAP 128
+    AVPacket        *video_pkt_queue[MB_VPKT_QUEUE_CAP];
+    int              video_pkt_head;
+    int              video_pkt_count;
 
     /* Per-context spectrum (legacy; postmix is preferred) */
     float            spectrum[MB_SPECTRUM_BANDS];
@@ -393,8 +402,16 @@ static int decode_all_image_frames(MediaBindings *mb, AVFormatContext *fmt,
 
     AVCodecContext *dec = avcodec_alloc_context3(codec);
     if (!dec) return -1;
-    if (avcodec_parameters_to_context(dec, st->codecpar) < 0 ||
-        avcodec_open2(dec, codec, NULL) < 0) {
+    if (avcodec_parameters_to_context(dec, st->codecpar) < 0) {
+        avcodec_free_context(&dec);
+        return -1;
+    }
+    /* Required so the decoder can rescale skip_samples / discard_padding
+     * (notably for Opus) into stream PTS units. Without this the
+     * libavcodec opus decoder logs:
+     *   "Could not update timestamps for skipped samples." */
+    dec->pkt_timebase = st->time_base;
+    if (avcodec_open2(dec, codec, NULL) < 0) {
         avcodec_free_context(&dec);
         return -1;
     }
@@ -577,6 +594,8 @@ static int open_video_decoder(MediaBindings *mb, MediaContext *mc)
     mc->codec_ctx = avcodec_alloc_context3(codec);
     if (!mc->codec_ctx) return -1;
     if (avcodec_parameters_to_context(mc->codec_ctx, st->codecpar) < 0) return -1;
+    /* Required for correct skip_samples / discard_padding handling. */
+    mc->codec_ctx->pkt_timebase = st->time_base;
 
     mc->is_hw = false;
     if (mb->bridge && MB_HW_PIX_FMT != AV_PIX_FMT_NONE) {
@@ -607,8 +626,15 @@ static int open_audio_decoder(MediaBindings *mb, MediaContext *mc)
 
     mc->audio_codec_ctx = avcodec_alloc_context3(codec);
     if (!mc->audio_codec_ctx) { mc->audio_stream_idx = -1; return 0; }
-    if (avcodec_parameters_to_context(mc->audio_codec_ctx, st->codecpar) < 0 ||
-        avcodec_open2(mc->audio_codec_ctx, codec, NULL) < 0) {
+    if (avcodec_parameters_to_context(mc->audio_codec_ctx, st->codecpar) < 0) {
+        avcodec_free_context(&mc->audio_codec_ctx);
+        mc->audio_stream_idx = -1; return 0;
+    }
+    /* Opus (and AAC) read pkt_timebase to rescale pre-skip / discard_padding
+     * sample counts into stream PTS units. Without it libavcodec emits:
+     *   "Could not update timestamps for skipped samples." */
+    mc->audio_codec_ctx->pkt_timebase = st->time_base;
+    if (avcodec_open2(mc->audio_codec_ctx, codec, NULL) < 0) {
         avcodec_free_context(&mc->audio_codec_ctx);
         mc->audio_stream_idx = -1; return 0;
     }
@@ -718,6 +744,7 @@ static void decode_audio_packet(MediaBindings *mb, MediaContext *mc, AVPacket *p
 static void pump_audio_buffer(MediaBindings *mb, MediaContext *mc)
 {
     if (!mc->sdl_stream) return;
+    if (mc->paused) return;
     const int target = 48000 * 2 * 2 / 5; /* ~200ms */
     for (int i = 0; i < 500; i++) {
         if (SDL_GetAudioStreamQueued(mc->sdl_stream) >= target) return;
@@ -726,11 +753,21 @@ static void pump_audio_buffer(MediaBindings *mb, MediaContext *mc)
         if (mc->pkt->stream_index == mc->audio_stream_idx) {
             decode_audio_packet(mb, mc, mc->pkt);
         } else if (mc->codec_ctx && mc->pkt->stream_index == mc->video_stream_idx) {
-            avcodec_send_packet(mc->codec_ctx, mc->pkt);
-            while (avcodec_receive_frame(mc->codec_ctx, mc->frame) == 0) {
-                if (mc->frame->pts != AV_NOPTS_VALUE)
-                    mc->position_pts = mc->frame->pts;
-                av_frame_unref(mc->frame);
+            /* Stash for decode_next_video_frame instead of discarding.
+             * If the queue is full, stop pumping audio — the video
+             * decoder is falling behind and we must not race ahead in
+             * the container or we'd drop video frames. */
+            if (mc->video_pkt_count >= MB_VPKT_QUEUE_CAP) {
+                av_packet_unref(mc->pkt);
+                return;
+            }
+            AVPacket *q = av_packet_alloc();
+            if (q) {
+                av_packet_move_ref(q, mc->pkt);
+                int tail = (mc->video_pkt_head + mc->video_pkt_count)
+                         % MB_VPKT_QUEUE_CAP;
+                mc->video_pkt_queue[tail] = q;
+                mc->video_pkt_count++;
             }
         }
         av_packet_unref(mc->pkt);
@@ -751,12 +788,47 @@ void media_bindings_pump_audio(MediaBindings *mb)
 /*  Video frame stepping                                               */
 /* ================================================================== */
 
+/* Pop the next queued video packet (FIFO). Returns NULL if empty.
+ * Caller owns the returned packet and must av_packet_free() it. */
+static AVPacket *vpkt_queue_pop(MediaContext *mc)
+{
+    if (mc->video_pkt_count <= 0) return NULL;
+    AVPacket *p = mc->video_pkt_queue[mc->video_pkt_head];
+    mc->video_pkt_queue[mc->video_pkt_head] = NULL;
+    mc->video_pkt_head = (mc->video_pkt_head + 1) % MB_VPKT_QUEUE_CAP;
+    mc->video_pkt_count--;
+    return p;
+}
+
+static void vpkt_queue_flush(MediaContext *mc)
+{
+    while (mc->video_pkt_count > 0) {
+        AVPacket *p = vpkt_queue_pop(mc);
+        if (p) av_packet_free(&p);
+    }
+    mc->video_pkt_head = 0;
+}
+
 static int decode_next_video_frame(MediaBindings *mb, MediaContext *mc)
 {
     if (mc->video_stream_idx < 0) return -1;
     release_current_video_frame(mb, mc);
     int rc;
     for (;;) {
+        /* Drain queued video packets first (stashed by pump_audio_buffer
+         * so they aren't lost). Only fall back to av_read_frame once
+         * the queue is empty. */
+        AVPacket *qpkt = vpkt_queue_pop(mc);
+        if (qpkt) {
+            rc = avcodec_send_packet(mc->codec_ctx, qpkt);
+            av_packet_free(&qpkt);
+            if (rc < 0) return -1;
+            rc = avcodec_receive_frame(mc->codec_ctx, mc->frame);
+            if (rc == AVERROR(EAGAIN)) continue;
+            if (rc == AVERROR_EOF) return 0;
+            if (rc < 0) return -1;
+            break;
+        }
         rc = av_read_frame(mc->fmt_ctx, mc->pkt);
         if (rc < 0) {
             if (rc == AVERROR_EOF || avio_feof(mc->fmt_ctx->pb)) return 0;
@@ -778,7 +850,10 @@ static int decode_next_video_frame(MediaBindings *mb, MediaContext *mc)
         if (rc < 0) return -1;
         break;
     }
-    if (mc->frame->pts != AV_NOPTS_VALUE) mc->position_pts = mc->frame->pts;
+    if (mc->frame->pts != AV_NOPTS_VALUE) {
+        mc->position_pts = mc->frame->pts;
+        mc->rendered_pts = mc->frame->pts;
+    }
     mc->width  = mc->frame->width;
     mc->height = mc->frame->height;
 
@@ -903,6 +978,8 @@ static MediaContext *try_open_stream(MediaBindings *mb,
     if (!mc) return NULL;
     mc->video_stream_idx = -1;
     mc->audio_stream_idx = -1;
+    mc->position_pts = AV_NOPTS_VALUE;
+    mc->rendered_pts = AV_NOPTS_VALUE;
 
     mc->src_data = (uint8_t *)malloc(len);
     if (!mc->src_data) { free(mc); return NULL; }
@@ -1019,6 +1096,7 @@ static void media_ctx_destroy(MediaBindings *mb, MediaContext *mc)
 
     /* Streaming */
     release_current_video_frame(mb, mc);
+    vpkt_queue_flush(mc);
     if (mc->sw_view)    { wgpuTextureViewRelease(mc->sw_view); }
     if (mc->sw_texture) { wgpuTextureDestroy(mc->sw_texture); wgpuTextureRelease(mc->sw_texture); }
     if (mc->sws_ctx)    sws_freeContext(mc->sws_ctx);
@@ -1149,6 +1227,9 @@ static wasm_trap_t *fn_media_seek(void *env,
     if (mc->codec_ctx)       avcodec_flush_buffers(mc->codec_ctx);
     if (mc->audio_codec_ctx) avcodec_flush_buffers(mc->audio_codec_ctx);
     if (mc->sdl_stream)      SDL_ClearAudioStream(mc->sdl_stream);
+    /* Drop stashed pre-seek video packets — they're from the old
+     * read position and would corrupt the post-seek decode. */
+    vpkt_queue_flush(mc);
     /* Frame-accurate forward decode for video. */
     if (mc->video_stream_idx >= 0) {
         for (;;) {
@@ -1167,6 +1248,9 @@ static wasm_trap_t *fn_media_seek(void *env,
             av_frame_unref(mc->frame);
             if (mc->position_pts >= ts) break;
         }
+        /* After seek, the next decode_next_video_frame call will set
+         * rendered_pts to the first actually-displayed post-seek frame. */
+        mc->rendered_pts = AV_NOPTS_VALUE;
     }
     RET_I32(0);
     return NULL;
@@ -1181,6 +1265,55 @@ static wasm_trap_t *fn_media_position_ms(void *env,
     if (mc->position_pts != AV_NOPTS_VALUE && mc->time_base.den > 0)
         vid_ms = av_rescale_q(mc->position_pts, mc->time_base, (AVRational){1,1000});
     int64_t ms = (mc->audio_clock_pts > vid_ms) ? mc->audio_clock_pts : vid_ms;
+    RET_I32((int32_t)ms);
+    return NULL;
+}
+
+/* PTS of the most recently *displayed* video frame, in ms. Used by the
+ * picturebox to sync video to the audio master clock.
+ *
+ * This must NOT use position_pts: pump_audio_buffer speculatively
+ * decodes video packets (and discards their frames) while topping up
+ * the audio buffer, which bumps position_pts ahead of what's actually
+ * on screen. We track rendered_pts separately, updated only when a
+ * frame is produced for display in decode_next_video_frame. */
+static wasm_trap_t *fn_media_video_pts_ms(void *env,
+    const wasm_val_vec_t *args, wasm_val_vec_t *res)
+{
+    GET_MC();
+    if (!mc || mc->video_stream_idx < 0 ||
+        mc->rendered_pts == AV_NOPTS_VALUE ||
+        mc->time_base.den <= 0) {
+        RET_I32(0); return NULL;
+    }
+    int64_t ms = av_rescale_q(mc->rendered_pts, mc->time_base, (AVRational){1,1000});
+    RET_I32((int32_t)ms);
+    return NULL;
+}
+
+/* Audible audio playback position in ms (audio master clock).
+ *
+ * `audio_clock_pts` is the PTS of the last *decoded* audio frame, which
+ * sits ahead of audible playback by however much audio is still queued
+ * in the SDL stream waiting to be played. Subtracting the queued
+ * duration yields the actual position the user is hearing, which is
+ * what video should chase to stay in sync. Returns 0 when no audio
+ * stream is present so callers can fall back to wall-clock pacing. */
+static wasm_trap_t *fn_media_audio_clock_ms(void *env,
+    const wasm_val_vec_t *args, wasm_val_vec_t *res)
+{
+    GET_MC();
+    if (!mc || mc->audio_stream_idx < 0 || !mc->sdl_stream) {
+        RET_I32(0); return NULL;
+    }
+    int64_t ms = mc->audio_clock_pts;
+    int queued_bytes = SDL_GetAudioStreamQueued(mc->sdl_stream);
+    if (queued_bytes > 0) {
+        /* 48000 Hz * 2 ch * 2 B/sample = 192000 B/s = 192 B/ms */
+        int64_t queued_ms = (int64_t)queued_bytes / 192;
+        ms -= queued_ms;
+        if (ms < 0) ms = 0;
+    }
     RET_I32((int32_t)ms);
     return NULL;
 }
@@ -1218,6 +1351,29 @@ static wasm_trap_t *fn_media_audio_set_muted(void *env,
     if (!mc || !mc->sdl_stream) { RET_I32(-1); return NULL; }
     mc->audio_muted = ARG_I32(1) ? true : false;
     SDL_SetAudioStreamGain(mc->sdl_stream, mc->audio_muted ? 0.0f : mc->audio_volume);
+    RET_I32(0); return NULL;
+}
+
+/* Pause or resume a streaming media context.
+ *
+ * While paused, pump_audio_buffer skips this context entirely, which
+ * freezes audio_clock_pts and prevents audio from being decoded ahead
+ * of the user-visible video. On resume, the host main loop's
+ * unconditional pump_audio call refills the SDL stream and audio_clock
+ * starts advancing again, giving the video a moving target to chase.
+ * Also clears any audio still queued so resume doesn't replay buffered
+ * sound from before the pause. */
+static wasm_trap_t *fn_media_set_paused(void *env,
+    const wasm_val_vec_t *args, wasm_val_vec_t *res)
+{
+    GET_MC();
+    if (!mc) { RET_I32(-1); return NULL; }
+    bool want = ARG_I32(1) ? true : false;
+    if (mc->paused == want) { RET_I32(0); return NULL; }
+    mc->paused = want;
+    if (want && mc->sdl_stream) {
+        SDL_ClearAudioStream(mc->sdl_stream);
+    }
     RET_I32(0); return NULL;
 }
 
@@ -1291,6 +1447,9 @@ static const MBindingEntry MEDIA_BINDINGS[] = {
     {"media_decode_next",         fn_media_decode_next,       1, {I},     1, {I}},
     {"media_seek",                fn_media_seek,              2, {I,I},   1, {I}},
     {"media_position_ms",         fn_media_position_ms,       1, {I},     1, {I}},
+    {"media_video_pts_ms",        fn_media_video_pts_ms,      1, {I},     1, {I}},
+    {"media_audio_clock_ms",      fn_media_audio_clock_ms,    1, {I},     1, {I}},
+    {"media_set_paused",          fn_media_set_paused,        2, {I,I},   1, {I}},
     {"media_texture",             fn_media_texture,           1, {I},     1, {I}},
     {"media_texture_view",        fn_media_texture_view,      1, {I},     1, {I}},
     {"media_pixel_layout",        fn_media_pixel_layout,      1, {I},     1, {I}},

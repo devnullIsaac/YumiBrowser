@@ -1,21 +1,3 @@
-/*
-    Yumi Browser — Main Entry Point
-    Copyright (C) 2026  DevNullIsaac
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
-
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-*/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -71,17 +53,20 @@ static const char *resolve_data_dir(const char *argv0) {
         snprintf(buf, sizeof(buf), ".");
     }
 
-    /* Check if buf itself has dashboard/ and webapps/ (i.e. we're in release/) */
+    /* Check if buf itself has demo/ or webapps/ (i.e. we're in release/) */
     char check[4096];
-    snprintf(check, sizeof(check), "%s/dashboard", buf);
     struct stat st;
+    snprintf(check, sizeof(check), "%s/demo", buf);
+    if (stat(check, &st) == 0 && S_ISDIR(st.st_mode))
+        return buf;
+    snprintf(check, sizeof(check), "%s/webapps", buf);
     if (stat(check, &st) == 0 && S_ISDIR(st.st_mode))
         return buf;
 
     /* Try ../release/ relative to binary */
     char release_buf[4096];
     snprintf(release_buf, sizeof(release_buf), "%s/../release", buf);
-    snprintf(check, sizeof(check), "%s/dashboard", release_buf);
+    snprintf(check, sizeof(check), "%s/demo", release_buf);
     if (stat(check, &st) == 0 && S_ISDIR(st.st_mode)) {
         /* Canonicalize */
         if (realpath(release_buf, buf))
@@ -95,22 +80,58 @@ static const char *resolve_data_dir(const char *argv0) {
 }
 
 /**
- * Build a path to a specific WASM file within the data directory.
- * Returns static buffer — not reentrant.
- */
-static const char *data_path(const char *data_dir, const char *subdir,
-                             const char *filename) {
-    static char path[4096];
-    snprintf(path, sizeof(path), "%s/%s/%s", data_dir, subdir, filename);
-    return path;
-}
-
-/**
  * Check if a file exists and is a regular file.
  */
 static bool file_exists(const char *path) {
     struct stat st;
     return stat(path, &st) == 0 && S_ISREG(st.st_mode);
+}
+
+/**
+ * Locate demo/demo.wasm by trying, in priority order:
+ *   1. <data_dir>/demo/demo.wasm           (XDG / installed location)
+ *   2. <binary_dir>/demo/demo.wasm         (running from release/)
+ *   3. <binary_dir>/../release/demo/demo.wasm (running from build/)
+ *   4. ./demo/demo.wasm                    (project root, dev mode)
+ *   5. ./release/demo/demo.wasm            (project root, dev mode)
+ *
+ * Returns a pointer to a static buffer holding the resolved path, or
+ * NULL if none of the candidates exist.
+ */
+static const char *resolve_demo_wasm(const char *data_dir, const char *argv0) {
+    static char out[4096];
+
+    /* 1. data_dir/demo/demo.wasm */
+    snprintf(out, sizeof(out), "%s/demo/demo.wasm", data_dir);
+    if (file_exists(out)) return out;
+
+    /* Derive binary directory from argv0 */
+    char bin_dir[4096];
+    const char *slash = strrchr(argv0, '/');
+    if (slash) {
+        size_t dir_len = (size_t)(slash - argv0);
+        snprintf(bin_dir, sizeof(bin_dir), "%.*s", (int)dir_len, argv0);
+    } else {
+        snprintf(bin_dir, sizeof(bin_dir), ".");
+    }
+
+    /* 2. <binary_dir>/demo/demo.wasm */
+    snprintf(out, sizeof(out), "%s/demo/demo.wasm", bin_dir);
+    if (file_exists(out)) return out;
+
+    /* 3. <binary_dir>/../release/demo/demo.wasm */
+    snprintf(out, sizeof(out), "%s/../release/demo/demo.wasm", bin_dir);
+    if (file_exists(out)) return out;
+
+    /* 4. ./demo/demo.wasm (cwd) */
+    snprintf(out, sizeof(out), "demo/demo.wasm");
+    if (file_exists(out)) return out;
+
+    /* 5. ./release/demo/demo.wasm (cwd) */
+    snprintf(out, sizeof(out), "release/demo/demo.wasm");
+    if (file_exists(out)) return out;
+
+    return NULL;
 }
 
 /* ------------------------------------------------------------------ */
@@ -149,7 +170,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "SDL_Init: %s\n", SDL_GetError()); return 1;
     }
 
-    SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_BORDERLESS | SDL_WINDOW_TRANSPARENT;
+    SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_TRANSPARENT;
 #if defined(__APPLE__)
     flags |= SDL_WINDOW_METAL;
 #endif
@@ -203,19 +224,19 @@ int main(int argc, char *argv[]) {
         int ww, wh;
         SDL_GetWindowSize(window, &ww, &wh);
 
-        /* 1. Load dashboard.wasm if present */
-        const char *dash_wasm = data_path(data_dir, "dashboard", "mato_dashboard.wasm");
-        if (file_exists(dash_wasm)) {
+        /* 1. First-run: load demo/demo.wasm from any of the known locations. */
+        const char *startup_wasm = resolve_demo_wasm(data_dir, argv[0]);
+        if (startup_wasm) {
             WebAppViewport vp = { .x = 0, .y = 0, .w = ww, .h = wh };
-            int slot = dashboard_add_slot(&dashboard, 0, dash_wasm, &vp, true);
+            int slot = dashboard_add_slot(&dashboard, 0, startup_wasm, &vp, false);
             if (slot >= 0) {
                 dashboard.focused_slot = slot;
-                printf("[main] Loaded dashboard: %s\n", dash_wasm);
+                printf("[main] Loaded startup webapp: %s\n", startup_wasm);
             } else {
-                fprintf(stderr, "[main] Failed to load dashboard: %s\n", dash_wasm);
+                fprintf(stderr, "[main] Failed to load startup webapp: %s\n", startup_wasm);
             }
         } else {
-            printf("[main] No dashboard.wasm found at %s\n", dash_wasm);
+            printf("[main] No demo/demo.wasm found in data dir, binary dir, or cwd\n");
         }
 
         /* 2. Scan webapps/ directory and load each .wasm file */
@@ -236,8 +257,6 @@ int main(int argc, char *argv[]) {
                 if (!file_exists(webapp_path)) continue;
 
                 printf("[main] Found webapp: %s\n", ent->d_name);
-                /* Webapps are loaded on demand via the dashboard UI,
-                   but we register them as available. For now, log discovery. */
             }
             closedir(dp);
         }
@@ -250,40 +269,29 @@ int main(int argc, char *argv[]) {
     while (running) {
         SDL_Event ev;
 
-        if (focused) {
-            while (SDL_PollEvent(&ev)) {
-                if (ev.type == SDL_EVENT_WINDOW_FOCUS_GAINED) focused = true;
-                if (ev.type == SDL_EVENT_WINDOW_FOCUS_LOST)   focused = false;
-                if (!dashboard_dispatch_event(&dashboard, &ev)) {
-                    running = false;
-                    break;
-                }
-            }
-        } else {
-            if (SDL_WaitEventTimeout(&ev, 50)) {
-                do {
-                    if (ev.type == SDL_EVENT_WINDOW_FOCUS_GAINED) focused = true;
-                    if (ev.type == SDL_EVENT_WINDOW_FOCUS_LOST)   focused = false;
-                    if (!dashboard_dispatch_event(&dashboard, &ev)) {
-                        running = false;
-                        break;
-                    }
-                } while (SDL_PollEvent(&ev));
-            }
-            /* Pump audio for all webapp slots */
-            for (uint32_t i = 0; i < dashboard.slot_count; i++) {
-                if (dashboard.slots[i].rt)
-                    webapp_runtime_pump_audio(dashboard.slots[i].rt);
+        while (SDL_PollEvent(&ev)) {
+            if (ev.type == SDL_EVENT_WINDOW_FOCUS_GAINED) focused = true;
+            if (ev.type == SDL_EVENT_WINDOW_FOCUS_LOST)   focused = false;
+            if (!dashboard_dispatch_event(&dashboard, &ev)) {
+                running = false;
+                break;
             }
         }
+
+        dashboard_tick(&dashboard);
 
         if (!running) break;
 
         static Uint64 last_frame_tick = 0;
         Uint64 now = SDL_GetTicks();
-        if (focused || now - last_frame_tick >= 500) {
+        /* Tick at ~60 FPS even when unfocused so video/audio playback
+         * inside webapps stays smooth in the background. */
+        if (focused || now - last_frame_tick >= 16) {
             last_frame_tick = now;
             dashboard_frame(&dashboard);
+        } else {
+            /* Avoid spinning a CPU core while unfocused between ticks. */
+            SDL_Delay(1);
         }
     }
 

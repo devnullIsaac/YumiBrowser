@@ -1,21 +1,3 @@
-/*
-    Dashboard Supervisor Runtime
-    Copyright (C) 2026  DevNullIsaac
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
-
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-*/
-
 /**
  * @file dashboard_runtime.h
  * @brief Dashboard supervisor runtime for Yumi Browser.
@@ -328,6 +310,15 @@ void dashboard_layout_split_v(DashboardRuntime *d,
  * offscreen textures onto the swapchain.
  */
 void dashboard_frame(DashboardRuntime *d);
+
+/**
+ * @brief Per-iteration maintenance tick.
+ *
+ * Called once per main-loop iteration to drive time-sensitive work
+ * that must run more often than the render frame (currently: refilling
+ * each slot's audio stream).  Cheap to call; safe at any rate.
+ */
+void dashboard_tick(DashboardRuntime *d);
 
 /**
  * @brief Dispatch an SDL event.
