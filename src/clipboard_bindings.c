@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "memory.h"
 
 #define B ((ClipboardBindings *)env)
 
@@ -20,8 +21,6 @@ static size_t wasm_mem_size(ClipboardBindings *b) {
 #define ARG_I32(n) (args->data[(n)].of.i32)
 #define RET_I32(v) do { res->data[0] = \
     (wasm_val_t){.kind = WASM_I32, .of.i32 = (v)}; } while (0)
-
-#define CLIPBOARD_MAX_SIZE (1024 * 1024)  /* 1 MB */
 
 /* ================================================================== */
 /*  Host functions                                                     */
@@ -97,15 +96,28 @@ static wasm_trap_t *fn_clipboard_set(void *env,
         RET_I32(0); return NULL;
     }
 
-    char *tmp = malloc((size_t)len + 1);
-    if (!tmp) { RET_I32(0); return NULL; }
-    memcpy(tmp, mem + ptr, (size_t)len);
-    tmp[len] = '\0';
+    ClipboardBuffer* tmp = NULL;
+    if (lease_ClipboardBuffer(&tmp) != YUMI_MEMORY_ALLOC_SUCCESS)
+    {
+        fprintf(stderr, "Failed to lease clipboard buffer for temporary copying.");
+        RET_I32(0); // Fail to lease clipboard!
+    }
+    else
+    {
+        if (tmp != NULL)
+        {
+            memcpy(tmp->buffer, mem + ptr, (size_t)len);
+            tmp->buffer[len] = '\0';
 
-    bool ok = SDL_SetClipboardText(tmp);
-    free(tmp);
-
-    RET_I32(ok ? 1 : 0);
+            bool ok = SDL_SetClipboardText(tmp->buffer);
+            release_ClipboardBuffer(tmp);
+            RET_I32(ok ? 1 : 0);
+        }
+        else
+        {
+            RET_I32(0);
+        }
+    }
     return NULL;
 }
 

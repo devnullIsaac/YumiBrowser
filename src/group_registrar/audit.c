@@ -16,16 +16,11 @@
  *    3: actor_id           8: prev_hash
  *    4: target_id          9: timestamp_ns
  * --------------------------------------------------------------- */
-static void read_audit_row(duckdb_data_chunk chunk, idx_t row,
-                           gr_audit_entry_t *out);
 
 void gr_audit_read_row(duckdb_data_chunk chunk, idx_t row,
                        gr_audit_entry_t *out) {
-    read_audit_row(chunk, row, out);
-}
-
-static void read_audit_row(duckdb_data_chunk chunk, idx_t row,
-                           gr_audit_entry_t *out) {
+    if (chunk == NULL || out == NULL)
+        return;
     int32_t ct = 0, rv = 0;
     memset(out, 0, sizeof(*out));
     gr_db_vec_get_blob(duckdb_data_chunk_get_vector(chunk, 0), row,
@@ -57,6 +52,7 @@ gr_error_t gr_audit_append(gr_registrar_t *reg, gr_change_type_t change_type,
                            const gr_identity_t *actor,
                            const uint8_t target_id[GR_PEER_ID_LEN],
                            const char *detail) {
+    gr_error_t res = GR_OK;
     gr_audit_entry_t entry;
     memset(&entry, 0, sizeof(entry));
 
@@ -82,70 +78,82 @@ gr_error_t gr_audit_append(gr_registrar_t *reg, gr_change_type_t change_type,
     entry.timestamp = entry.timestamp_ns / 1000000LL;
     entry.change_type = change_type;
     memcpy(entry.actor_id, actor->peer_id, GR_PEER_ID_LEN);
-    if (target_id)
+    if (target_id != NULL)
         memcpy(entry.target_id, target_id, GR_PEER_ID_LEN);
     reg->header.version++;
     entry.registrar_version = reg->header.version;
-    if (detail)
+    if (detail != NULL)
         strncpy(entry.detail, detail, sizeof(entry.detail) - 1);
 
     /* Hash entry content (Skein-1024) — includes prev_hash for chaining */
     yumi_skein_ctx_t *skein = NULL;
     if (yumi_skein_init(&skein) != YUMI_CRYPTO_OK)
-        return GR_ERR_CRYPTO;
-    yumi_skein_update(skein, entry.prev_hash, GR_HASH_LEN);
-    int64_t ts_le = (int64_t)gr_htole64((uint64_t)entry.timestamp);
-    yumi_skein_update(skein, (const uint8_t *)&ts_le, 8);
-    uint32_t ct = gr_htole32((uint32_t)entry.change_type);
-    yumi_skein_update(skein, (const uint8_t *)&ct, 4);
-    yumi_skein_update(skein, entry.actor_id, GR_PEER_ID_LEN);
-    yumi_skein_update(skein, entry.target_id, GR_PEER_ID_LEN);
-    uint32_t rv_le = gr_htole32(entry.registrar_version);
-    yumi_skein_update(skein, (const uint8_t *)&rv_le, 4);
-    yumi_skein_update(skein, (const uint8_t *)entry.detail,
-                      strlen(entry.detail));
-    yumi_skein_final(skein, entry.entry_hash);
-    yumi_skein_free(skein);
+        res = GR_ERR_CRYPTO;
+    if (res == GR_OK)
+    {
+        yumi_skein_update(skein, entry.prev_hash, GR_HASH_LEN);
+        int64_t ts_le = (int64_t)gr_htole64((uint64_t)entry.timestamp);
+        yumi_skein_update(skein, (const uint8_t *)&ts_le, 8);
+        uint32_t ct = gr_htole32((uint32_t)entry.change_type);
+        yumi_skein_update(skein, (const uint8_t *)&ct, 4);
+        yumi_skein_update(skein, entry.actor_id, GR_PEER_ID_LEN);
+        yumi_skein_update(skein, entry.target_id, GR_PEER_ID_LEN);
+        uint32_t rv_le = gr_htole32(entry.registrar_version);
+        yumi_skein_update(skein, (const uint8_t *)&rv_le, 4);
+        yumi_skein_update(skein, (const uint8_t *)entry.detail,
+                        strlen(entry.detail));
+        yumi_skein_final(skein, entry.entry_hash);
+        yumi_skein_free(skein);
+    }
 
-    /* Sign the hash (ML-DSA-87 signature) */
-    if (yumi_mldsa_sign(entry.signature, entry.entry_hash, GR_HASH_LEN,
-                        actor->secret_key) != YUMI_CRYPTO_OK)
-        return GR_ERR_CRYPTO;
+    if (res == GR_OK)
+    {
+        /* Sign the hash (ML-DSA-87 signature) */
+        if (yumi_mldsa_sign(entry.signature, entry.entry_hash, GR_HASH_LEN,
+                            actor->secret_key) != YUMI_CRYPTO_OK)
+            res = GR_ERR_CRYPTO;
+    }
 
-    /* Insert via cached prepared statement */
-    duckdb_prepared_statement stmt = reg->ps_audit_insert;
-    duckdb_clear_bindings(stmt);
+    if (res == GR_OK)
+    {
+        /* Insert via cached prepared statement */
+        duckdb_prepared_statement stmt = reg->ps_audit_insert;
+        duckdb_clear_bindings(stmt);
 
-    duckdb_bind_blob(stmt, 1, entry.entry_hash, GR_HASH_LEN);
-    duckdb_bind_int64(stmt, 2, entry.timestamp);
-    duckdb_bind_int32(stmt, 3, (int32_t)entry.change_type);
-    duckdb_bind_blob(stmt, 4, entry.actor_id, GR_PEER_ID_LEN);
-    duckdb_bind_blob(stmt, 5, entry.target_id, GR_PEER_ID_LEN);
-    duckdb_bind_blob(stmt, 6, entry.signature, GR_SIGN_LEN);
-    duckdb_bind_int32(stmt, 7, (int32_t)entry.registrar_version);
-    duckdb_bind_varchar(stmt, 8, entry.detail);
-    duckdb_bind_blob(stmt, 9, entry.prev_hash, GR_HASH_LEN);
-    duckdb_bind_int64(stmt, 10, entry.timestamp_ns);
+        duckdb_bind_blob(stmt, 1, entry.entry_hash, GR_HASH_LEN);
+        duckdb_bind_int64(stmt, 2, entry.timestamp);
+        duckdb_bind_int32(stmt, 3, (int32_t)entry.change_type);
+        duckdb_bind_blob(stmt, 4, entry.actor_id, GR_PEER_ID_LEN);
+        duckdb_bind_blob(stmt, 5, entry.target_id, GR_PEER_ID_LEN);
+        duckdb_bind_blob(stmt, 6, entry.signature, GR_SIGN_LEN);
+        duckdb_bind_int32(stmt, 7, (int32_t)entry.registrar_version);
+        duckdb_bind_varchar(stmt, 8, entry.detail);
+        duckdb_bind_blob(stmt, 9, entry.prev_hash, GR_HASH_LEN);
+        duckdb_bind_int64(stmt, 10, entry.timestamp_ns);
 
-    duckdb_result result;
-    duckdb_state st = duckdb_execute_prepared(stmt, &result);
-    duckdb_destroy_result(&result);
-    if (st != DuckDBSuccess)
-        return GR_ERR_DB;
+        duckdb_result result;
+        duckdb_state st = duckdb_execute_prepared(stmt, &result);
+        duckdb_destroy_result(&result);
+        if (st != DuckDBSuccess)
+            res = GR_ERR_DB;
+        else
+        {
+            reg->header.updated_at = entry.timestamp;
+            res = gr_header_save(reg);
+        }
 
-    reg->header.updated_at = entry.timestamp;
-    gr_error_t save_err = gr_header_save(reg);
-    if (save_err != GR_OK)
-        return save_err;
+        if (res == GR_OK)
+        {
+            /* Enforce audit log retention after successful append */
+            gr_audit_enforce_retention_internal(reg);
 
-    /* Enforce audit log retention after successful append */
-    gr_audit_enforce_retention_internal(reg);
+            /* Per-mutation behavioral check — fires alert callback if the
+            * actor who just mutated exceeds burst or abuse thresholds.    */
+            gr_behavior_check_actor(reg, actor->peer_id, change_type);
+        }
+    }
 
-    /* Per-mutation behavioral check — fires alert callback if the
-     * actor who just mutated exceeds burst or abuse thresholds.    */
-    gr_behavior_check_actor(reg, actor->peer_id, change_type);
-
-    return GR_OK;
+    return res;
 }
 
 /**
@@ -178,7 +186,7 @@ gr_error_t gr_audit_list(const gr_registrar_t *reg, int64_t since_timestamp,
            (chunk = duckdb_fetch_chunk(result)) != NULL) {
         idx_t rows = duckdb_data_chunk_get_size(chunk);
         for (idx_t i = 0; i < rows && count < max_count; i++) {
-            read_audit_row(chunk, i, &out[count]);
+            gr_audit_read_row(chunk, i, &out[count]);
             count++;
         }
         duckdb_destroy_data_chunk(&chunk);
@@ -301,7 +309,7 @@ gr_error_t gr_audit_verify_chain(const gr_registrar_t *reg,
             idx_t rows = duckdb_data_chunk_get_size(vchunk);
             for (idx_t i = 0; i < rows; i++) {
                 gr_audit_entry_t entry;
-                read_audit_row(vchunk, i, &entry);
+                gr_audit_read_row(vchunk, i, &entry);
 
                 /* Check for genesis entry (all-zero prev_hash) */
                 if (yumi_memcmp(entry.prev_hash, zero_hash, GR_HASH_LEN) == 0)
@@ -453,7 +461,7 @@ gr_error_t gr_audit_list_forks(const gr_registrar_t *reg,
         idx_t rows = duckdb_data_chunk_get_size(chunk);
         for (idx_t i = 0; i < rows && fork_idx < max_forks; i++) {
             gr_audit_entry_t entry;
-            read_audit_row(chunk, i, &entry);
+            gr_audit_read_row(chunk, i, &entry);
 
             bool new_group = first ||
                 yumi_memcmp(entry.prev_hash, current_prev, GR_HASH_LEN) != 0;

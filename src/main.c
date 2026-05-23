@@ -9,6 +9,7 @@
 #include "dashboard_runtime.h"
 #include "crypto.h"
 #include "ffmpeg_loader.h"
+#include "memory.h"
 
 /* ------------------------------------------------------------------ */
 /*  XDG data directory resolution                                      */
@@ -139,6 +140,8 @@ static const char *resolve_demo_wasm(const char *data_dir, const char *argv0) {
 /* ------------------------------------------------------------------ */
 
 int main(int argc, char *argv[]) {
+    initialize_yumi_browser_static_heaps(); // Always start with this.
+
     if (yumi_crypto_init() != YUMI_CRYPTO_OK) { fprintf(stderr, "crypto init failed\n"); return 1; }
     printf("[crypto] Post-quantum crypto initialized (OpenSSL + oqs-provider)\n");
 

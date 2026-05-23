@@ -21,7 +21,6 @@ endif
 
 wasmer_dep = declare_dependency(
   include_directories: include_directories('deps/wasmer/package/include'),
-  compile_args: ['-DWASMER_COMPILER_ENABLED'],
   dependencies: cc.find_library('wasmer',
     dirs: [meson.project_source_root() / 'deps/wasmer/package/lib']
   ),
@@ -272,6 +271,7 @@ src = [
   'src/media_bindings.c',
   'src/slang_bindings.cpp',
   'src/network_bindings.c',
+  'src/memory/static_heap.c',
 ] + group_registrar_src + crypto_src + network_src + yumi_client_src
 
 # (above the executable() call)
@@ -306,6 +306,127 @@ executable('yumibrowser',
   build_rpath: ':'.join(build_rpath_dirs),
   install_rpath: '$ORIGIN',
 )
+
+# =====================================================================
+#  contrib/font-paint-cli — Font contour extraction + shader binding
+# =====================================================================
+
+executable('font-paint-cli',
+  [
+    'contrib/font-paint-cli/main.c',
+    'contrib/font-paint-cli/paint.c',
+    'contrib/shader_bind/slang_reflect.cpp'
+  ],
+  include_directories: [
+    'include/',
+    'contrib/shader_bind/'
+  ],
+  dependencies: [slang_dep, freetype_dep, m_dep],
+  c_args: option_release ? native_c_args : ['-O2'],
+  link_args: native_link_args,
+  build_rpath: ':'.join([
+    meson.project_source_root() / 'deps/slang/install/lib',
+    meson.project_source_root() / 'deps/freetype/install/lib',
+  ]),
+  install_rpath: '$ORIGIN',
+  install: false,
+)
+
+# =====================================================================
+#  contrib/shader_bind — Slang → WGSL binding header generator
+# =====================================================================
+
+executable('shader-bind',
+  [
+    'contrib/shader_bind/main.c',
+    'contrib/shader_bind/slang_reflect.cpp'
+  ],
+  dependencies: [slang_dep, m_dep],
+  include_directories: [
+    'include/',
+  ],
+  c_args: option_release ? native_c_args : ['-O2'],
+  link_args: native_link_args,
+  build_rpath: ':'.join([
+    meson.project_source_root() / 'deps/slang/install/lib',
+  ]),
+  install_rpath: '$ORIGIN',
+  install: false,
+)
+
+# =====================================================================
+#  contrib/shader_preview — Live Slang fragment shader preview
+# =====================================================================
+
+executable('shader-preview',
+  [
+    'contrib/shader_preview/main.c',
+    'contrib/shader_bind/slang_reflect.cpp'
+  ],
+  dependencies: [slang_dep, sdl_dep, dawn_dep, m_dep, cpp_stdlib],
+  include_directories: [
+    'contrib/shader_bind/',
+  ],
+  c_args: option_release ? native_c_args : ['-O2'],
+  link_args: native_link_args,
+  build_rpath: ':'.join([
+    meson.project_source_root() / 'deps/slang/install/lib',
+    meson.project_source_root() / 'deps/sdl/build',
+    dawn_libdir,
+  ]),
+  install_rpath: '$ORIGIN',
+  install: false,
+)
+
+# =====================================================================
+#  contrib/svg-to-slang — SVG → Slang shader generator (CLI front-end)
+# =====================================================================
+
+if libxml2_dep.found()
+  svg_to_slang_src = [
+    'contrib/svg-to-slang/src/svg-parse.c',
+    'contrib/svg-to-slang/src/translate.c',
+    'contrib/svg-to-slang/src/translate-math.c',
+    'contrib/svg-to-slang/src/translate-image.c',
+    'contrib/svg-to-slang/src/translate-paint.c',
+    'contrib/svg-to-slang/src/translate-flatten.c',
+    'contrib/svg-to-slang/src/translate-emit.c',
+    'contrib/svg-to-slang/src/translate-ssbo.c',
+    'contrib/svg-to-slang/src/translate-cheader.c',
+    'contrib/svg-to-slang/src/translate-ir.c',
+    'contrib/svg-to-slang/src/translate-figma.c',
+    'contrib/svg-to-slang/src/main.c',
+  ]
+
+  executable('svg-to-slang',
+    svg_to_slang_src,
+    include_directories: [
+      'contrib/svg-to-slang/include/',
+    ],
+    dependencies: [libxml2_dep, m_dep],
+    c_args: option_release ? native_c_args : ['-O2'],
+    link_args: native_link_args,
+    install: false,
+  )
+
+  test_svg_parse = executable('test_svg_parse',
+    [
+      'contrib/svg-to-slang/tests/test-svg-parse.c',
+      'contrib/svg-to-slang/src/svg-parse.c',
+    ],
+    include_directories: [
+      'contrib/svg-to-slang/include/',
+    ],
+    dependencies: [libxml2_dep, m_dep],
+    c_args: native_c_args,
+    link_args: native_link_args,
+    install: false,
+  )
+
+  test('svg_parse', test_svg_parse, timeout: 30)
+else
+  warning('libxml2 not found — skipping contrib/svg-to-slang')
+endif
 
 # =====================================================================
 #  Test suite
@@ -453,6 +574,167 @@ test_crypto_abstract = executable('test_crypto_abstract',
 
 test('crypto_abstract', test_crypto_abstract, env: crypto_test_env)
 
+test_textbox = executable('test_textbox',
+  [
+    'tests/test_textbox.c',
+  ],
+  dependencies: [m_dep],
+  include_directories: [
+    'include/',
+    'sdk/gui/',
+  ],
+  c_args: native_c_args,
+  link_args: native_link_args,
+  install: false,
+)
+
+test('textbox', test_textbox)
+
+test_calendar = executable('test_calendar',
+  [
+    'tests/test_calendar.c',
+  ],
+  dependencies: [m_dep],
+  include_directories: [
+    'include/',
+    'sdk/gui/',
+  ],
+  c_args: native_c_args,
+  link_args: native_link_args,
+  install: false,
+)
+
+test('calendar', test_calendar)
+
+test_unistring = executable('test_unistring',
+  [
+    'tests/test_unistring.c',
+  ],
+  dependencies: [m_dep],
+  include_directories: [
+    'include/',
+    'sdk/gui/',
+  ],
+  c_args: native_c_args,
+  link_args: native_link_args,
+  install: false,
+)
+
+test('unistring', test_unistring)
+
+test_treeview = executable('test_treeview',
+  [
+    'tests/test_treeview.c',
+  ],
+  dependencies: [m_dep],
+  include_directories: [
+    'include/',
+    'sdk/gui/',
+  ],
+  c_args: native_c_args,
+  link_args: native_link_args,
+  install: false,
+)
+
+test('test_treeview', test_treeview)
+
+test_toolbox = executable('test_toolbox',
+  [
+    'tests/test_toolbox.c',
+  ],
+  dependencies: [m_dep],
+  include_directories: [
+    'include/',
+    'sdk/gui/',
+  ],
+  c_args: native_c_args,
+  link_args: native_link_args,
+  install: false,
+)
+
+test('toolbox', test_toolbox)
+
+test_clay_layout = executable('test_clay_layout',
+  [
+    'tests/test_clay_layout.c',
+  ],
+  dependencies: [m_dep],
+  include_directories: [
+    'include/',
+    'sdk/gui/',
+  ],
+  c_args: native_c_args,
+  link_args: native_link_args,
+  install: false,
+)
+
+test('clay_layout', test_clay_layout)
+
+
+test_picturebox = executable('test_picturebox',
+  [
+    'tests/test_picturebox.c',
+  ],
+  dependencies: [m_dep],
+  include_directories: [
+    'include/',
+    'sdk/gui/',
+  ],
+  c_args: native_c_args,
+  link_args: native_link_args,
+  install: false,
+)
+
+test('test_picturebox', test_picturebox)
+
+test_docbox = executable('test_docbox',
+  [
+    'tests/test_docbox.c',
+  ],
+  dependencies: [m_dep],
+  include_directories: [
+    'include/',
+    'sdk/gui/',
+  ],
+  c_args: native_c_args,
+  link_args: native_link_args,
+  install: false,
+)
+
+test('test_docbox', test_docbox)
+
+test_docbox2 = executable('test_docbox2',
+  [
+    'tests/test_docbox2.c',
+  ],
+  dependencies: [m_dep],
+  include_directories: [
+    'include/',
+    'sdk/gui/',
+  ],
+  c_args: native_c_args,
+  link_args: native_link_args,
+  install: false,
+)
+
+test('test_docbox2', test_docbox2)
+
+test_nodegraph = executable('test_nodegraph',
+  [
+    'tests/test_nodegraph.c',
+  ],
+  dependencies: [m_dep],
+  include_directories: [
+    'include/',
+    'sdk/gui/',
+  ],
+  c_args: native_c_args,
+  link_args: native_link_args,
+  install: false,
+)
+
+test('test_nodegraph', test_nodegraph)
+
 # ── UDP client test ──────────────────────────────────────────────
 
 test_udp_client = executable('test_udp_client',
@@ -565,3 +847,48 @@ test_registrar_full = executable('test_registrar_full',
 )
 
 test('registrar_full', test_registrar_full, timeout: 120, env: crypto_test_env)
+
+# ── Dashboard runtime unit tests ───────────────────────────────
+
+dashboard_test_src = [
+  'src/dashboard_runtime.c',
+  'src/webapp_runtime.c',
+  'src/gpu.c',
+  'src/wgpu_bindings.c',
+  'src/duckdb_bindings.c',
+  'src/sdl_bindings.c',
+  'src/log_bindings.c',
+  'src/text_bindings.c',
+  'src/input_bindings.c',
+  'src/clipboard_bindings.c',
+  'src/font_bindings.c',
+  'src/ffmpeg_loader.c',
+  'src/wgpu_ffmpeg.c',
+  'src/media_bindings.c',
+  'src/slang_bindings.cpp',
+  'src/network_bindings.c',
+] + group_registrar_src + crypto_src + network_src + yumi_client_src
+
+test_dashboard = executable('test_dashboard',
+  ['tests/test_dashboard.c', 'src/memory/static_heap.c'] + dashboard_test_src + libjuice_src,
+  dependencies: deps + [threads_dep],
+  include_directories: [
+    'include/',
+    'src/',
+    'src/group_registrar/',
+    'src/crypto/',
+    ffmpeg_inc,
+  ] + libjuice_inc,
+  c_args: native_c_args + libjuice_c_args,
+  link_args: native_link_args,
+  build_rpath: ':'.join(build_rpath_dirs),
+  install: false,
+)
+
+dashboard_test_env = environment()
+dashboard_test_env.set('OPENSSL_MODULES',
+  meson.project_source_root() / 'deps/openssl/install/lib/ossl-modules')
+dashboard_test_env.prepend('LD_LIBRARY_PATH',
+  ':'.join(build_rpath_dirs))
+
+test('dashboard', test_dashboard, timeout: 60, env: dashboard_test_env)

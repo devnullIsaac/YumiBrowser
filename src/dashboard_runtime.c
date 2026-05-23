@@ -7,6 +7,7 @@
 
 #include "dashboard_runtime.h"
 #include "webapp_runtime.h"
+#include "memory.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -831,12 +832,6 @@ bool dashboard_dispatch_event(DashboardRuntime *d, const SDL_Event *ev) {
 /*  Group lifecycle                                                    */
 /* ================================================================== */
 
-/* Event callback context for dashboard group events */
-typedef struct {
-    DashboardRuntime *d;
-    uint32_t          group_index;
-} DashboardGroupCtx;
-
 static void dashboard_group_event_cb(void *user,
                                       yumi_client_event_t event,
                                       const uint8_t *peer_id) {
@@ -922,8 +917,13 @@ int dashboard_connect_group(DashboardRuntime *d, uint32_t group_index) {
     g->state = GROUP_STATE_CONNECTING;
 
     /* Allocate persistent callback context */
-    DashboardGroupCtx *ctx = malloc(sizeof(*ctx));
-    if (!ctx) return -1;
+    DashboardGroupCtx *ctx = NULL;
+    yumi_memory_alloc_error_enum allocRes = lease_DashboardGroupCtx(&ctx);
+    if (allocRes != YUMI_MEMORY_ALLOC_SUCCESS ||
+        ctx == NULL)
+    {
+        return -1;
+    }
     ctx->d = d;
     ctx->group_index = group_index;
 
@@ -936,7 +936,7 @@ int dashboard_connect_group(DashboardRuntime *d, uint32_t group_index) {
     int ret = yumi_client_open(&g->client, &cfg, g->group_id, NULL);
     if (ret != 0) {
         g->state = GROUP_STATE_FAILED;
-        free(ctx);
+        release_DashboardGroupCtx(ctx);
         return -1;
     }
 
@@ -1080,14 +1080,16 @@ void dashboard_handle_paste_request(DashboardRuntime *d, uint32_t slot_index) {
 
 void dashboard_handle_copy_request(DashboardRuntime *d,
                                    const char *text, uint32_t len) {
-    if (!text || len == 0) return;
+    if (!text || len == 0 || len >= CLIPBOARD_MAX_SIZE) return;
     /* Copy to system clipboard — no confirmation needed for copy */
-    char *buf = malloc(len + 1);
-    if (!buf) return;
-    memcpy(buf, text, len);
-    buf[len] = '\0';
-    SDL_SetClipboardText(buf);
-    free(buf);
+    ClipboardBuffer* clipboardBuf = NULL;
+    if (lease_ClipboardBuffer(&clipboardBuf) == YUMI_MEMORY_ALLOC_SUCCESS)
+    {
+        memcpy(clipboardBuf->buffer, text, len);
+        clipboardBuf->buffer[len] = '\0';
+        SDL_SetClipboardText((const char*)clipboardBuf->buffer);
+        release_ClipboardBuffer(clipboardBuf);
+    }
 }
 
 /* ================================================================== */
@@ -1119,13 +1121,6 @@ bool dashboard_get_group_link(const DashboardRuntime *d,
 /* ================================================================== */
 /*  File dialog portal API                                             */
 /* ================================================================== */
-
-/* Context passed to SDL3 async file dialog callbacks */
-typedef struct {
-    DashboardRuntime *d;
-    uint32_t          slot_index;
-    uint32_t          handle;     /* IPC_FILE_OPEN_PENDING / SAVE / FOLDER */
-} FileDialogCtx;
 
 /* Deliver a file path result to the requesting WASM webapp */
 static void file_dialog_deliver(DashboardRuntime *d, uint32_t slot_index,
@@ -1187,49 +1182,55 @@ static void SDLCALL file_dialog_callback(void *userdata,
 void dashboard_open_file_dialog(DashboardRuntime *d, uint32_t slot_index) {
     if (slot_index >= d->slot_count) return;
 
-    FileDialogCtx *ctx = malloc(sizeof(*ctx));
-    if (!ctx) return;
-    ctx->d = d;
-    ctx->slot_index = slot_index;
-    ctx->handle = IPC_FILE_OPEN_PENDING;
+    FileDialogCtx *ctx = NULL;
+    if (lease_FileDialogCtx(&ctx) == YUMI_MEMORY_ALLOC_SUCCESS)
+    {
+        ctx->d = d;
+        ctx->slot_index = slot_index;
+        ctx->handle = IPC_FILE_OPEN_PENDING;
 
-    d->pending_ipc.type       = IPC_FILE_OPEN_PENDING;
-    d->pending_ipc.slot_index = slot_index;
+        d->pending_ipc.type       = IPC_FILE_OPEN_PENDING;
+        d->pending_ipc.slot_index = slot_index;
 
-    SDL_ShowOpenFileDialog(file_dialog_callback, ctx, d->window,
-                           NULL, 0, NULL, false);
+        SDL_ShowOpenFileDialog(file_dialog_callback, ctx, d->window,
+                            NULL, 0, NULL, false);
+    }
 }
 
 void dashboard_save_file_dialog(DashboardRuntime *d, uint32_t slot_index) {
     if (slot_index >= d->slot_count) return;
 
-    FileDialogCtx *ctx = malloc(sizeof(*ctx));
-    if (!ctx) return;
-    ctx->d = d;
-    ctx->slot_index = slot_index;
-    ctx->handle = IPC_FILE_SAVE_PENDING;
+    FileDialogCtx *ctx = NULL;
+    if (lease_FileDialogCtx(&ctx) == YUMI_MEMORY_ALLOC_SUCCESS)
+    {
+        ctx->d = d;
+        ctx->slot_index = slot_index;
+        ctx->handle = IPC_FILE_SAVE_PENDING;
 
-    d->pending_ipc.type       = IPC_FILE_SAVE_PENDING;
-    d->pending_ipc.slot_index = slot_index;
+        d->pending_ipc.type       = IPC_FILE_SAVE_PENDING;
+        d->pending_ipc.slot_index = slot_index;
 
-    SDL_ShowSaveFileDialog(file_dialog_callback, ctx, d->window,
-                            NULL, 0, NULL);
+        SDL_ShowSaveFileDialog(file_dialog_callback, ctx, d->window,
+                                NULL, 0, NULL);
+    }
 }
 
 void dashboard_open_folder_dialog(DashboardRuntime *d, uint32_t slot_index) {
     if (slot_index >= d->slot_count) return;
 
-    FileDialogCtx *ctx = malloc(sizeof(*ctx));
-    if (!ctx) return;
-    ctx->d = d;
-    ctx->slot_index = slot_index;
-    ctx->handle = IPC_FOLDER_OPEN_PENDING;
+    FileDialogCtx *ctx = NULL;
+    if (lease_FileDialogCtx(&ctx) == YUMI_MEMORY_ALLOC_SUCCESS)
+    {
+        ctx->d = d;
+        ctx->slot_index = slot_index;
+        ctx->handle = IPC_FOLDER_OPEN_PENDING;
 
-    d->pending_ipc.type       = IPC_FOLDER_OPEN_PENDING;
-    d->pending_ipc.slot_index = slot_index;
+        d->pending_ipc.type       = IPC_FOLDER_OPEN_PENDING;
+        d->pending_ipc.slot_index = slot_index;
 
-    SDL_ShowOpenFolderDialog(file_dialog_callback, ctx, d->window,
-                              NULL, false);
+        SDL_ShowOpenFolderDialog(file_dialog_callback, ctx, d->window,
+                                NULL, false);
+    }
 }
 
 /* ================================================================== */
@@ -1300,77 +1301,112 @@ bool dashboard_export_group(DashboardRuntime *d, uint32_t group_index) {
     }
 
     /* Read the group's DuckDB file */
-    FILE *fp = fopen(g->db_path, "rb");
-    if (!fp) {
+    FILE *db_file = fopen(g->db_path, "rb");
+    if (db_file == NULL) {
         fprintf(stderr, "[dashboard] Cannot open %s for export\n", g->db_path);
         return false;
     }
 
-    fseek(fp, 0, SEEK_END);
-    long file_size = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
+    fseek(db_file, 0, SEEK_END);
+    long file_size = ftell(db_file);
+    fseek(db_file, 0, SEEK_SET);
 
     if (file_size <= 0) {
-        fclose(fp);
+        fclose(db_file);
         return false;
     }
 
-    uint8_t *raw = malloc((size_t)file_size);
-    if (!raw) { fclose(fp); return false; }
-    if (fread(raw, 1, (size_t)file_size, fp) != (size_t)file_size) {
-        free(raw); fclose(fp); return false;
-    }
-    fclose(fp);
-
-    /* LZMA compress */
-    lzma_stream strm = LZMA_STREAM_INIT;
-    lzma_ret ret = lzma_easy_encoder(&strm, 6, LZMA_CHECK_CRC64);
-    if (ret != LZMA_OK) {
-        free(raw);
-        fprintf(stderr, "[dashboard] LZMA encoder init failed\n");
-        return false;
-    }
-
-    size_t out_cap = lzma_stream_buffer_bound((size_t)file_size);
-    uint8_t *compressed = malloc(out_cap);
-    if (!compressed) { lzma_end(&strm); free(raw); return false; }
-
-    strm.next_in  = raw;
-    strm.avail_in = (size_t)file_size;
-    strm.next_out  = compressed;
-    strm.avail_out = out_cap;
-
-    ret = lzma_code(&strm, LZMA_FINISH);
-    size_t compressed_size = out_cap - strm.avail_out;
-    lzma_end(&strm);
-    free(raw);
-
-    if (ret != LZMA_STREAM_END) {
-        free(compressed);
-        fprintf(stderr, "[dashboard] LZMA compression failed\n");
-        return false;
-    }
-
-    /* Write to export path */
     char export_path[4192];
     snprintf(export_path, sizeof(export_path), "%s.xz", g->db_path);
 
     FILE *out = fopen(export_path, "wb");
     if (!out) {
-        free(compressed);
         fprintf(stderr, "[dashboard] Cannot write export to %s\n", export_path);
+        fclose(db_file);
         return false;
     }
 
-    bool ok = (fwrite(compressed, 1, compressed_size, out) == compressed_size);
-    fclose(out);
-    free(compressed);
+    uint8_t in_buf[4096];
+    uint8_t out_buf[4096];
 
-    if (ok)
-        printf("[dashboard] Exported group %u to %s (%zu bytes)\n",
-               group_index, export_path, compressed_size);
-    return ok;
+    /* LZMA compress */
+    lzma_stream strm = LZMA_STREAM_INIT;
+    lzma_ret ret = lzma_easy_encoder(&strm, 6, LZMA_CHECK_CRC64);
+    if (ret != LZMA_OK) {
+        fprintf(stderr, "[dashboard] LZMA encoder init failed\n");
+        fclose(db_file);
+        fclose(out);
+        return false;
+    }
+
+    strm.next_in = NULL;
+    strm.avail_in = 0;
+    strm.next_out = out_buf;
+    strm.avail_out = sizeof(out_buf);
+
+    lzma_action action = LZMA_RUN;
+    bool success = true;
+
+    while (success) {
+        // Read more input if buffer is empty
+        if (strm.avail_in == 0 && action == LZMA_RUN) {
+            size_t read_size = fread(in_buf, 1, sizeof(in_buf), db_file);
+            strm.next_in = in_buf;
+            strm.avail_in = read_size;
+
+            if (read_size < sizeof(in_buf)) {
+                if (feof(db_file)) {
+                    action = LZMA_FINISH;
+                } else {
+                    fprintf(stderr, "[dashboard] Read error\n");
+                    success = false;
+                    break;
+                }
+            }
+        }
+
+        // Compress
+        ret = lzma_code(&strm, action);
+
+        // Write output if buffer is full or we're done
+        if (strm.avail_out == 0 || ret == LZMA_STREAM_END) {
+            size_t write_size = sizeof(out_buf) - strm.avail_out;
+            if (write_size > 0) {
+                if (fwrite(out_buf, 1, write_size, out) != write_size) {
+                    fprintf(stderr, "[dashboard] Write error\n");
+                    success = false;
+                    break;
+                }
+                strm.next_out = out_buf;
+                strm.avail_out = sizeof(out_buf);
+            }
+        }
+
+        // Check for completion
+        if (ret == LZMA_STREAM_END) {
+            break;
+        }
+
+        if (ret != LZMA_OK) {
+            fprintf(stderr, "[dashboard] LZMA compression failed: %d\n", ret);
+            success = false;
+            break;
+        }
+    }
+
+    lzma_end(&strm);
+    fclose(db_file);
+    fclose(out);
+
+    if (success) {
+        printf("[dashboard] Exported group %u to %s\n", group_index, export_path);
+    } else {
+        remove(export_path);
+    }
+
+    return success;
 }
+
 
 /* ================================================================== */
 /*  Recovery mode                                                      */

@@ -1,0 +1,2 @@
+option('release_build', type: 'boolean', value: false,
+       description: 'Enable -O3 optimizations for release builds')
