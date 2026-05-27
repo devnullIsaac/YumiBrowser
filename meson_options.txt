@@ -1,5 +1,0 @@
-option('release_build',
-  type: 'boolean',
-  value: false,
-  description: 'Enable release optimisations (-O3 -DNDEBUG, gc-sections).'
-)

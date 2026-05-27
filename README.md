@@ -1,218 +1,188 @@
-# Yumi Browser
-
 ![Yumi Browser](Banner.png)
 
-**A peer-to-peer, post-quantum, sandboxed application platform that gives people back ownership of their digital relationships.**
+# Yumi Browser
 
-Built in C11. No servers. No accounts. No surveillance. No middlemen. AGPL-3.0.
+> **Preview:** see [Preview.webm](Preview.webm) for a short video preview of Yumi Browser in action.
 
-This is a **three-year project** — the work, the sweat, and the soul of a single maintainer who believes the internet can be rebuilt around people instead of platforms.
+> **⚠ Pre-Alpha Software** — Yumi is in active early development. The architecture, protocols, and host runtime are taking shape; the user interface and webapp surface are not yet stable enough for general use. See [Project Status](#project-status).
 
----
+**Yumi is a browser for your friends.**
 
-## The Problem
+Not for websites. Not for corporations. For **people you actually know**.
 
-The modern internet got relationships backwards. Every space where people talk, share, and collaborate — Discord, Slack, Google Workspace, Meta, Teams — is rented from a corporation that surveils, monetizes, censors, and can pull the plug tomorrow. Billions of human relationships sit inside business models that are hostile to them. This is not a UX problem. It is a structural problem, and it will not be solved by another app on the same architecture.
+Open it, connect to your group, and you're in a shared space built around you. Chat, share files, watch videos together, edit documents, plan events — whatever your group needs. The apps live inside your relationship. Your relationship doesn't live inside someone else's app.
 
-## The Solution
+No accounts. No sign-ups. No platform reading your mail.
 
-**Yumi flips the model: the group comes first, the tools serve the group, and the data is owned by the people in it.**
-
-Open Yumi, connect to your group, and you are inside a shared space built around the people you actually know. Chat, files, photos, video, music, livestreaming, collaborative documents, custom apps — all running locally, all encrypted end-to-end, all governed by the group itself. No platform sits in the middle. No company holds the keys. No algorithm decides what you see.
-
-It is a browser — but for sandboxed WebAssembly applications running inside cryptographically-defined peer groups, not for the corporate web.
-
-**Confidentiality is architectural, not advisory.** A WebAssembly webapp running in Yumi has no path to exfiltrate data outside its group. The sandbox does not expose raw sockets, arbitrary HTTP, or filesystem access — every byte a webapp sends or receives is mediated by the host and is locked inside that group's encrypted channel. This is a stronger structural confidentiality guarantee than most software shipping today, where any application can quietly phone home to anywhere on the internet.
-
-**Networking is locked to the group, by construction.** A webapp cannot open a connection to an arbitrary peer, an arbitrary server, or another group. The host's networking layer only carries traffic inside the group the webapp is currently running for. There is no "escape hatch" API. Copying data out of a group is not something a webapp can do on its own — it requires a human in the group to manually export or screenshot, or a deliberately modified client. That risk falls under **social engineering**, not under a software-level exfiltration vulnerability: any bad actor admitted into a group can, by definition, read what they are shown, and that boundary is true of every communication tool ever built. Yumi narrows the surface to that, and not more.
-
-**No central server means no central outage.** Every group member is a node. Connections are peer-to-peer with failover paths between members and optional, group-chosen rebroadcasters for offline catch-up. There is no company-owned backend that can go down, get acquired, or be turned off. As long as the people in your group exist, your group exists.
+**Why "Browser"?** Yumi runs sandboxed WebAssembly webapps — you browse and launch apps inside your groups. Some webapps even let you build new webapps from within the browser. It is a browser, just not for the traditional web.
 
 ---
 
-## Why This Matters
+## The Internet Got Relationships Backwards
 
-This project exists for everyone who has ever felt that their group chats, their friendships, and their communities deserve better than to be tenants in someone else’s data center. It is for users who want a tool they actually own. It is for developers who want a stable platform that will still be there in a decade. It is for granting organizations and sponsors who want to fund digital infrastructure that serves the public rather than extracts from it. The case below is the same in every direction — only the way you can help differs.
+You don't visit a website and then try to bolt your friends onto it. You start with the people, and the tools serve the group.
 
-**1. The hard parts are real and working.** The cryptographic stack, the group registrar, the peer-to-peer transport, the WebAssembly sandbox host, and the GPU runtime are implemented and exercised by an extensive test suite. This is not a whitepaper. The foundation is built.
+Discord, Slack, Google Workspace, Teams — they all make you rent a room from a middleman. That middleman can surveil you, monetize you, censor you, or pull the plug tomorrow. You don't own the space. You're a guest in someone else's business model.
 
-**2. Post-quantum from day one.** ML-DSA-87 signatures, ML-KEM-1024 key encapsulation, hybrid classical+post-quantum construction, Threefish-1024 / Skein-1024 symmetric layer. Built on OpenSSL plus the Open Quantum Safe project. Standards-based primitives — deployed before mainstream platforms have finished arguing about them.
-
-**3. Architectural integrity.** Every webapp runs sandboxed in WebAssembly. The dashboard has no network access. Groups enforce membership at the protocol level, not at an application server. Moderator actions are signed and visible to every member. Removed users do not lose their social graph. These are not features bolted on — they are the structure of the system. The group registrar code is not final, but it has laid the foundation for the larger vision: an **attested group registrar** so that peer-to-peer is not a synonym for anarchy, but a system where every interaction belongs to an identifiable, signed group.
-
-**4. Built to last decades, not quarters.** Yumi is engineered toward long-term stability with a 20-year aspirational horizon. The concrete commitment is more measured: once Yumi Browser ships its 1.0 release, after extensive testing, the project will strive to honor a **5-year stability goal** for the wire protocol, the WebAssembly API, and the group-registrar contract. Strict WebAssembly API backward compatibility is the central design objective. A group formed at 1.0 is meant to keep working as the project evolves underneath it. This is infrastructure thinking, not product thinking.
-
-**5. Public-interest by construction.** No ads. No tracking. No telemetry. No central operator. AGPL-3.0. The project cannot moderate, censor, or monetize its users because there is no facility through which to do so. Funding Yumi funds digital infrastructure that belongs to its users by design.
-
-**6. Independent of Big Tech rails.** No App Store, no Play Store, no platform gatekeeper. Runs on commodity hardware. The optional signaling and rebroadcast roles can be operated by anyone for a few dollars a month.
+**Yumi flips the script.** The group comes first. The data is yours. The experience is yours. No intermediary. No fine print.
 
 ---
 
-## What Funding And Support Enable
+## Built to Last
 
-- Independent third-party security audit of the cryptographic stack and network protocol
-- Hardening to MISRA-C and Frama-C annotated correctness across the host runtime
-- Expert review of the existing documentation. The repository is in an early stage of deployment and active fixing, but a substantial body of architectural, cryptographic, networking, and threat-model documentation has already been drafted and written. It needs review by domain experts to be confirmed, corrected, and made authoritative. This is one of the most leveraged uses of funding for the project right now.
-- Large-scale network testing. Hardware to stand up realistic, multi-node test environments — driven by the [GNS3](https://www.gns3.com/) network simulation project — so that the peer-to-peer transport, the group registrar, and the attestation logic can be exercised against partitions, packet loss, latency, asymmetric links, and Byzantine peers at scale. This is needed to provide real assurance against split-brain failure modes and group-attestation edge cases that cannot be reproduced on a single developer workstation.
-- Completion of the user-interface migration and the first round of shipped webapps
-- Accessibility, internationalization, and assistive-technology support
-- Packaging and distribution work to reach non-technical users at scale
-- Long-term maintenance toward the 20-year stability target
+Yumi is pre-alpha today because we are building the foundation to last decades.
+
+- **5-year baseline stability (design goal)**: A Yumi installation is designed to keep working, joining groups, and interoperating with peers for at least five years from release without forced migration.
+- **20-year aspirational target**: The architecture — sandbox model, group registrar, cryptographic construction, wire protocol — is designed to stay put.
+- **Strict WASM API backward compatibility (design objective)**: Once a host function is exposed to WebAssembly, the project's intent is that it stays exposed, so webapps written today should run in a Yumi built years from now. See [docs/08-stability-commitment.md](docs/08-stability-commitment.md) for the full commitment — which is a design objective, not a warranty. Yumi Browser is provided as-is under AGPL-3.0.
 
 ---
 
-## Status
+## Yumi in Plain English
 
-**Pre-alpha / alpha.** Single maintainer. Provided as-is, no warranty.
+### What Yumi actually is
 
-- **Core runtime, crypto, and networking:** implemented and tested.
-- **WebApps: none have been published. None ship in this repository. None are available out of the box. Full stop.** The webapp layer is a separate, in-progress effort.
-- **User interface:** the current stage of work is wiring the UI design into the GUI layer of the browser. Once that is done, a functioning GUI exists and the webapps that sit on top of it can be built. Expect frequent changes here during this period.
-- **WebApp architecture:** webapps are designed around a clean **business-logic-layer** model — **WebGPU handles presentation, WebAssembly handles logic, DuckDB handles the data layer**. This separation is enforced by the sandbox boundary itself.
-- **Network and wire protocol:** functional and exercised, but they have **not yet undergone strict third-party scrutiny**. Closing that gap is a top-priority item on the roadmap.
-- **GUI toolkit:** Yumi Browser does not need to ship a public GUI toolkit for the platform to be useful. Anyone is free to use Dear ImGui, Nuklear, or any other WebAssembly-compatible immediate-mode or retained-mode toolkit, or to design their own GUI toolkit on top of the WebGPU + WebAssembly substrate.
-- **Future published webapps:** webapps that are eventually published for Yumi Browser are expected to be **closed-source end products**. This is a licensing reality, not a philosophy: shipped webapps will bundle assets and depend on tooling whose licenses (paid commercial licenses for assets, confidential third-party software) only permit redistribution as part of a closed end-product. The browser itself remains AGPL-3.0; the webapps that ride on it will not all be.
+Yumi is a program you install on your computer. When you open it, you see a Dashboard — your personal control panel. From there, you join or create **groups**: private spaces for you and people you know. Inside each group, you run **apps** — chat, file sharing, video calls, picture albums, and more. These apps are not websites you visit in Chrome or Firefox. They are small programs that run inside Yumi itself, sandboxed so that they are not granted access to your files, your network, or other groups without permission.
 
-## See It In Action
+That is why it is called a **browser**: you browse and launch apps inside it, just as you browse websites in a web browser. Some apps are even tools for building new apps. But instead of browsing the public internet, you are browsing the apps available inside your group.
 
-A short video preview of Yumi Browser's current functional state ships in this repository as [`Preview.webm`](Preview.webm). You can play it directly with any modern video player (`mpv Preview.webm`, VLC, or any browser that supports WebM) without building anything. It is the fastest way to get a feel for what the runtime looks like today.
+### How it connects people
 
-For a hands-on look, the build also ships a **demo WebAssembly application**. After running `./build.sh`, the demo webapp is staged at `release/demo/demo.wasm` and is loaded automatically as the first-run default webapp when you launch `yumibrowser`. Running the browser is therefore enough to see the WebAssembly sandbox, the WebGPU presentation layer, and the host runtime working end to end — no extra configuration, no external network connection, and no account required.
+When you send a message or share a file in Yumi, it does not go to a central server owned by a company. It travels directly between the computers of the people in your group, protected by **group cryptography**: authorized members of the group hold the keys, and the design is intended so that parties outside the group — including the Yumi project itself — are not in a position to read the content. For one-to-one side conversations within a group, Yumi also supports **private "whisper" cryptography** layered on top of the group, so that a pairwise message between two members is intended to be readable only by those two members, not by the rest of the group. If a friend is offline, an optional **rebroadcast server** (a cheap cloud computer your group chooses) can hold encrypted copies until they come back online. That server is not issued the group's keys — under the current design it holds opaque ciphertext it is not equipped to decrypt.
 
-> The *Wing It!* video content shown in the preview and in the demo webapp is © Blender Foundation, used under CC BY 4.0. See [`THIRD_PARTY.md`](THIRD_PARTY.md) for full attribution.
+Yumi's cryptography is built on **OpenSSL** (the same library used by Chrome, Firefox, and most commercial software) together with the **Open Quantum Safe `oqs-provider`** for post-quantum algorithms. The post-quantum primitives used (ML-KEM, ML-DSA) are NIST-standardized; the fallback and hybrid primitives (FrodoKEM, BrainPool-P512r1) are recognized in European and international standards. These are mainstream, standards-based building blocks, not bespoke crypto. See [docs/04-cryptography.md](docs/04-cryptography.md) for the full list and citations.
 
-## On Trusting Closed-Source WebApps
+To find each other across home networks and Wi-Fi, Yumi uses small **signaling servers** that briefly remember where each peer is located. These servers see only scrambled identifiers, not group names, not content, not who you are talking to.
 
-A closed-source webapp on Yumi Browser is not the same risk as a closed-source application on a conventional operating system. Three things change the calculus:
+### The sociology: groups, not feeds
 
-1. **WebAssembly is a strong sandbox.** A Yumi webapp runs inside a Wasmer-hosted WebAssembly module with no syscall surface, no raw filesystem, no raw network, no ambient authority. Every capability it has is an explicit host-provided import, and the networking imports are scoped to its group. A closed-source webapp cannot do anything the host has not granted it permission to do — and the host does not grant permission to talk outside the group.
-2. **The host enforces the boundary, not the webapp.** "Trust" in a closed-source Yumi webapp is not trust that its authors wrote benign code. It is trust in the *host runtime* in this repository, which is open source under AGPL-3.0. The host is what decides what a webapp can and cannot do.
-3. **The host is designed to be auditable by non-experts.** A core, openly aspirational goal of Yumi Browser is that **anyone with minimal programming skill should be able to walk through the source code and verify the security claims for themselves** — a property Firefox and Chrome, despite being extraordinary engineering efforts, cannot offer simply because no single human can audit tens of millions of lines of C++ end-to-end. That is not a flaw of their teams; it is the structural cost of being a general-purpose web browser. Yumi is not a general-purpose web browser, and it uses that narrower scope deliberately: the host is written in plain C11, the binding modules are organized one capability per file, the WebAssembly API surface is documented header by header, and **shrinking the overall code footprint is treated as an ongoing security feature**, on equal footing with the cryptography and the sandbox. The work is not finished — the codebase is pre-alpha and active reduction is part of the roadmap — but the direction is fixed: keep the host small enough that an ordinary developer can confirm, with their own eyes, that no networking import lets a webapp reach outside its group. Self-auditability by non-experts is the bar, and the size of the code is the means.
+Yumi is built on a simple observation: for most of human history, conversation was private by default. Two people talking did not route their words through a distant intermediary that could record, filter, or monetize them. Modern platforms reversed this default. They own the room and rent you a corner.
 
-In short: you do not have to trust the closed-source webapp. You have to trust the open-source browser that contains it, and that browser is written to be checked.
+Yumi restores the older pattern. The **group** is the atomic unit. There is no global feed, no algorithm deciding what you see, no engagement score, no corporate account system. Your identity exists only within the groups you join. A group of three friends sharing photos is just as valid as a public group of thousands.
 
-## Scope: Browser vs. WebApp Pipeline
+This design is intentional because human beings naturally sort into groups of trust and mutual obligation. When people know they are in a bounded space with others they will continue to interact with, reputation matters and social accountability returns. The platform does not claim to fix human nature — it claims to give human nature a better container.
 
-Yumi Browser and the Yumi webapp development pipeline are **two separate projects**. The webapp pipeline is its own effort, with its own goals and its own proprietary tooling, and it is not part of this repository. Yumi Browser itself is therefore deliberately scoped to the bare necessities: a stable host runtime, a wide and frozen WebAssembly API surface, robust sandboxing, dependable cryptography, and a long-lived wire protocol. Everything above the WebAssembly boundary — editors, builders, asset pipelines, design tooling — lives in the separate webapp-development project. This separation is intentional: it lets the browser stay small, conservative, and stable for the next twenty years, while the webapp ecosystem is free to evolve at its own pace.
+### Governance and accountability
 
-This repository is a clean, focused snapshot of the browser. It is intentionally separated from the larger working monorepo to keep the codebase presented here unentangled from unrelated dependencies.
+Every group has a **registrar**: a signed document that says who is in the group, what roles they have, and which apps are allowed. Moderators and administrators are peers designated by the group's registrar — they are regular users the group has granted permissions to, not Yumi Browser staff. The Yumi Browser application itself does not moderate any group, and the project operates no service that could. When a registrar-designated moderator removes someone, that action is logged and signed on every member's machine. The group owner cannot hide it. If enough members disagree with how a group is run, they can collectively form a new group and take their social graph with them. The power to fork is built in, and its presence disciplines moderation.
+
+### Security: honest limits
+
+Yumi uses strong cryptography to protect messages in transit and at rest, including post-quantum algorithms designed to resist future advances in computing. However, no software can protect you if your own computer is compromised by malware, if you are tricked into inviting a malicious peer, or if someone with physical access to your unlocked device opens the app. See [docs/11-threat-model.md](docs/11-threat-model.md) for a complete, honest description of what Yumi defends against and what it does not.
 
 ---
 
-## Build and Install
+## How It Works (The Short Version)
 
-Yumi Browser is built from source on Linux. The top-level [`build.sh`](build.sh) script orchestrates everything: it bootstraps Git submodules, fetches the WASI SDK, builds every dependency under `deps/` (SDL, OpenSSL + oqs-provider, FFmpeg, FreeType, HarfBuzz, ICU, LibRaw, Wasmer, Dawn, DuckDB, Slang, bzip2, libjpeg-turbo), then compiles the project and stages a self-contained tree under `release/`.
+| What | How |
+|---|---|
+| **Window & Graphics** | SDL3 + WebGPU |
+| **Apps** | Sandboxed WebAssembly |
+| **Crypto** | Post-quantum primitives (see [docs/04-cryptography.md](docs/04-cryptography.md)) |
+| **Networking** | Encrypted peer-to-peer (see [docs/06-networking.md](docs/06-networking.md)) |
+| **Shaders** | Slang pipeline (see [docs/07-shaders.md](docs/07-shaders.md)) |
 
-> **Status reminder.** Yumi Browser is pre-alpha. The build is expected to work on a modern Linux developer workstation; rough edges on other distributions are likely. File an issue if you hit one.
+Want the full architecture deep-dive? Start with [00 — Architectural Overview](docs/00-overview.md).
 
-### Prerequisites
+---
 
-You need a working developer toolchain on the host system. The dependency builds inside `deps/` require:
+## Younger Users
 
-- A recent C/C++ toolchain (GCC ≥ 13 or Clang ≥ 16)
-- `meson` and `ninja`
-- `cmake`
-- `pkg-config`
-- `git` (with submodule support) and `bash`
-- `python3` (used by several upstream build systems)
-- `curl` or `wget` (used by `scripts/install_wasi_sdk.sh`)
-- Standard build helpers: `make`, `autoconf`, `automake`, `libtool`, `nasm`, `perl`
+Yumi Browser is intended for users aged 13 and older. There is no global feed, no account system, and no telemetry — a user's data lives on their own device and on the devices of the peers in groups they have joined. Group membership is the unit of access, and parents or guardians who want to supervise a younger user's participation should do so by deciding which groups that user is in.
 
-On a Debian/Ubuntu-style system this is roughly:
+A dedicated join-lock feature for supervising installations is sketched in the future plans — see [docs/24-roadmap.md#parental-control](docs/24-roadmap.md#parental-control). Until it ships, operating-system-level controls (for example, GNOME Parental Controls / malcontent on Linux) are the recommended way to gate installation and use of the application.
 
-```sh
-sudo apt-get install -y build-essential git curl python3 \
-    meson ninja-build cmake pkg-config \
-    autoconf automake libtool nasm perl
+---
+
+## Get Yumi
+
+### The Easy Way (Recommended)
+
+**Flatpak** is the simplest and safest way to run Yumi on Linux:
+
+```bash
+flatpak-builder flatpak-build com.yumi.browser.yml --force-clean
 ```
 
-On Fedora/RHEL:
+### The Hard Way (Build from Source)
 
-```sh
-sudo dnf install -y @development-tools git curl python3 \
-    meson ninja-build cmake pkgconf-pkg-config \
-    autoconf automake libtool nasm perl
-```
+You need Linux (x86_64), GCC or Clang, CMake, Meson, Ninja, and patience — this compiles *everything* from scratch.
 
-GPU drivers with Vulkan support are required at runtime (Dawn drives WebGPU on Vulkan).
-
-### Clone
-
-```sh
-git clone --recurse-submodules https://codeberg.org/DevNullIsaac/YumiBrowser.git
+```bash
+git clone --recursive <your repository URL here>
 cd YumiBrowser
+build.sh          # Debug
+build.sh --release # Optimized
 ```
 
-If you cloned without `--recurse-submodules`, run:
+Then run it:
 
-```sh
-git submodule update --init --recursive
+```bash
+./release/yumibrowser                    # Normal launch
+./release/yumibrowser --webapp app.wasm  # Dev mode: single app
+./release/yumibrowser --data-dir /path   # Custom data directory
 ```
 
-### Build (debug)
-
-```sh
-./build.sh
-```
-
-This is the default. It produces a debug-mode binary and assembles a self-contained release tree at `release/`. Test binaries land at `build/test_*`.
-
-### Build (release)
-
-```sh
-./build.sh --release
-```
-
-Builds the project itself with `-O3 -DNDEBUG` and dead-code/data section stripping. Dependencies are always built in their own release configuration regardless of this flag.
-
-### Other build flags
-
-- `--rebuild` — wipe **all** prebuilt dependency artifacts under `deps/` and rebuild them from scratch. Useful after a toolchain upgrade.
-- `--rebuild=<a,b,c>` — wipe only the listed dependencies. Names match the script files under `scripts/deps/` (e.g. `--rebuild=slang,dawn`).
-- `--flatpak` — wipe prebuilt dependency artifacts and the project build tree before building, so dependencies are rebuilt against the Flatpak SDK container's glibc.
-
-The full flag list is documented at the top of [`build.sh`](build.sh).
-
-### Run
-
-If `~/.local/bin` is on your `PATH`, after a successful build you can simply run:
-
-```sh
-yumibrowser
-```
-
-Otherwise run the staged binary directly:
-
-```sh
-cd release
-./yumibrowser
-```
-
-A `.desktop` entry is installed by `scripts/desktop_entry.sh` so the application appears in standard launchers.
-
-### Tests
-
-Unit and integration tests are compiled alongside the main binary. After a build, run them individually:
-
-```sh
-cd build
-./test_crypto
-./test_audit
-./test_yumi_client
-# ... etc.
-```
-
-All test binaries are listed under `build/test_*`. New contributions that touch security-sensitive code are expected to come with corresponding tests; see [`CONTRIBUTING.md`](CONTRIBUTING.md).
-
-### Project Documentation
-
-- [`SECURITY.md`](SECURITY.md) — vulnerability reporting policy
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to contribute
-- [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — community rules
-- [`THIRD_PARTY.md`](THIRD_PARTY.md) — vendored third-party source and its licenses
-- [`AUTHORS`](AUTHORS) — maintainer and contributors
-- [`CHANGELOG.md`](CHANGELOG.md) — release history
+> **Platform Roadmap:** Linux (x86_64) is the first supported platform. Windows, macOS, Android, and iOS are intended for future support. Yumi's C core and WebAssembly sandboxing model are designed to be portable across operating systems.
 
 ---
 
-**Yumi Browser is a browser for your friends — not for websites, not for corporations, for people you actually know. Whether you use it, build on it, contribute to it, or fund it: help us build it.**
+## Documentation
+
+| Doc | What's Inside |
+|---|---|
+| [00 — Overview](docs/00-overview.md) | The three pillars |
+| [01 — Host Runtime](docs/01-host-runtime.md) | SDL3, WebGPU, WASM |
+| [02 — Binding Modules](docs/02-binding-modules.md) | What the host exposes to apps |
+| [03 — SDK](docs/03-sdk.md) | Building WASM apps for Yumi |
+| [04 — Cryptography](docs/04-cryptography.md) | Keys, primitives, threat model |
+| [05 — Group Registrar](docs/05-group-registrar.md) | Governance API |
+| [06 — Networking](docs/06-networking.md) | P2P transport |
+| [07 — Shaders](docs/07-shaders.md) | Shader pipeline |
+| [08 — Stability Commitment](docs/08-stability-commitment.md) | 5-year baseline, 20-year target |
+| [09 — Application Model](docs/09-application-model.md) | Dashboard vs. regular apps |
+| [10 — Group Model](docs/10-group-model.md) | Storage, types, registrar |
+| [11 — Threat Model](docs/11-threat-model.md) | What we defend against |
+| [12 — Rebroadcast Server](docs/12-rebroadcast-server.md) | Offline catch-up & big files |
+| [13 — Tamper Resistance](docs/13-tamper-resistance.md) | Signed messages, integrity |
+| [14 — Anti-Sybil](docs/14-anti-sybil.md) | Private groups, vetting |
+| [15 — Moderator Accountability](docs/15-moderator-accountability.md) | Transparent audit logs |
+| [16 — WebApp Distribution](docs/16-webapp-distribution.md) | Signed apps, community page |
+| [17 — Infrastructure](docs/17-infrastructure.md) | Signaling, rebroadcast, full servers |
+| [18 — Deployment](docs/18-recommended-deployment.md) | Flatpak, sandboxing, VMs |
+| [19 — FFmpeg Policy](docs/19-ffmpeg.md) | Codecs, patents, transcoding |
+| [20 — Building](docs/20-building.md) | Full build instructions |
+| [21 — Running & Testing](docs/21-running-testing.md) | Launch options, test suite |
+| [22 — Project Structure](docs/22-project-structure.md) | Source tree |
+| [23 — Development Focus](docs/23-development-focus.md) | MISRA-C, Frama-C, auditing |
+| [24 — Roadmap](docs/24-roadmap.md) | What's next (not promises) |
+| [25 — FAQ](docs/25-faq.md) | Common questions |
+| [26 — Social Design](docs/26-social-design.md) | Why Yumi is built around groups |
+
+---
+
+## License
+
+AGPL-3.0. See [LICENSE](LICENSE).
+
+Third-party dependencies bundled under `deps/` are distributed under their own licenses — see [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md) for the per-dependency summary.
+
+---
+
+## Project Status
+
+Yumi Browser is **pre-alpha** software under active development by a solo maintainer. The host runtime, group registrar, networking stack, and cryptographic abstraction are progressing; the Dashboard UI, webapp surface, and user-facing flows are still in design. Until the UI/UX has been finalized (a working Figma design feeding into the Dashboard is the gating milestone), the project is not yet at the point where general users should be installing it.
+
+There has been no independent third-party security review.
+
+The cryptographic construction (Threefish-1024-CTR with Skein-1024-MAC under Encrypt-then-MAC) is implemented carefully against published primitives, but the composition as shipped has not been independently reviewed. If you need a formally reviewed stack today, Yumi is not the right fit yet.
+
+MISRA-C compliance and Frama-C annotations are an ongoing objective, not a completed state. See [docs/23-development-focus.md](docs/23-development-focus.md) for details.
+
+### AI-Assisted Development
+
+Yumi Browser is a human-developed project. The maintainer uses AI coding assistants (including Anthropic's Claude) as a tool during development — the same way a developer might use a compiler, a linter, or a static analyzer. AI is not the author of the project, does not make design decisions, and does not commit code on its own. Every AI-suggested change is read, evaluated, edited where necessary, and accepted or rejected by the human maintainer before it lands.
+
+This matters because AI assistants can produce code that looks correct but is subtly wrong. Yumi Browser treats AI output as a starting draft, not as ground truth. The project's reliance on **MISRA-C** as a coding discipline is part of how that draft is hardened: MISRA-C is a widely used set of rules for safety and security-relevant C code, originally developed for the automotive industry, and it constrains the language to a subset that is easier to reason about and harder to misuse. Combined with Frama-C static analysis (see [docs/23-development-focus.md](docs/23-development-focus.md)), it gives the project a structural check on what gets accepted into the tree — whether the initial draft came from a human or from an AI assistant. Any deviation from MISRA-C in Yumi Browser's own code is documented in [MISRA-C.md](MISRA-C.md) with the rationale.
+
+In short: AI accelerates the work; the human is responsible for the result; MISRA-C and Frama-C are how the result is held to account.

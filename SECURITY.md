@@ -1,147 +1,71 @@
 # Security Policy
 
-Yumi Browser is a cryptographic, peer-to-peer application platform. Because the
-project's value proposition rests on the integrity of its sandbox, its wire
-protocol, and its post-quantum crypto stack, we take security reports
-seriously and ask reporters to treat them with care as well.
+## Reporting a Vulnerability
 
-This document describes how to report a vulnerability, what to expect in
-response, and the project's current scope and limits.
+If you believe you have found a security vulnerability in Yumi Browser, please report it **privately** through GitHub's private vulnerability reporting mechanism:
 
----
+1. Go to the project's repository on GitHub.
+2. Click the **Security** tab.
+3. Click **Report a vulnerability** (this opens a private **Security Advisory** draft visible only to you and the maintainer).
+4. Fill in the advisory with as much detail as you can reasonably provide.
 
-## 1. Scope
+GitHub Security Advisories provide a private channel for coordinated disclosure, a space for patch development, and a mechanism for publishing the advisory once a fix is available. This is the preferred reporting channel because it keeps the discussion private until users have an opportunity to update.
 
-Reports are in scope if they affect any of the following components shipped
-from this repository:
+**Please do not file public GitHub issues for suspected security vulnerabilities.** Public issues are visible to everyone the moment they are filed and can expose users to risk before a fix is available.
 
-- The host runtime (`src/`, `include/`)
-- The cryptographic layer (`src/crypto/`, `src/group_registrar/crypto.c`)
-- The group registrar and identity / attestation logic
-  (`src/group_registrar/`)
-- The peer-to-peer network stack (`src/network/`)
-- The WebAssembly sandbox host and capability boundary
-  (`src/webapp_runtime.c`, `src/dashboard_runtime.c`, `*_bindings.c`)
-- The build/release scripts in `scripts/` insofar as they produce the
-  shipped binary in `release/`
+## What to Include
 
-Reports are **out of scope** for:
+A useful report generally includes:
 
-- Vulnerabilities in third-party dependencies that are already tracked
-  upstream (please report those upstream first; see `THIRD_PARTY.md`).
-  We are happy to receive a notification that an upstream advisory affects
-  Yumi, but the primary fix path is the upstream project.
-- Issues that require an attacker who is already an admitted, trusted member
-  of a group to misuse data they were authorized to see. As stated in the
-  README, this is a social-engineering risk, not a software vulnerability.
-- Issues that require physical access to an unlocked device.
-- Theoretical attacks against the underlying standardized primitives
-  (ML-DSA-87, ML-KEM-1024, Skein-1024, Threefish-1024) where the report does
-  not demonstrate a concrete exploitable issue in Yumi's use of them.
-- Findings in pre-alpha or unfinished subsystems that are clearly marked as
-  such in the README or in code comments. We still want to hear about them,
-  but they will not be treated as embargoed vulnerabilities.
+- The Yumi Browser version, commit hash, or Flatpak build number where the issue was observed.
+- The operating system and environment (e.g. Linux distribution, Flatpak vs. source build).
+- A description of the vulnerability and the conditions required to reproduce it.
+- A proof-of-concept or minimal reproducer, if one is available.
+- Your assessment of impact (confidentiality, integrity, availability, sandbox escape, etc.).
+- Whether the issue has been disclosed elsewhere, and if so, where.
 
----
+If any of this information is unavailable, report what you have. Partial reports are still useful.
 
-## 2. Reporting a Vulnerability
+## Scope
 
-**Please report security issues privately.** Do not open a public issue, pull
-request, or forum post.
+In scope:
 
-- **Email:** `devnullisaac@gmail.com`
-- **Subject prefix:** `[YUMI-SEC]`
-- **Encryption:** PGP/GPG-encrypted mail is welcome. If you wish to use an
-  encrypted channel and no key is published yet, send a short unencrypted
-  message asking for a key fingerprint and we will reply with one.
+- The Yumi Browser host runtime (`src/`, `include/`) — C code maintained by this project.
+- The in-house cryptographic abstraction layer (`src/crypto/`).
+- The Group Registrar (`src/group_registrar/`).
+- The networking stack (`src/network/`).
+- The SDK headers (`sdk/`) that define the WebAssembly import surface.
+- The default WebApps shipped with Yumi Browser (`webapps/`).
 
-Please include, at minimum:
+Out of scope (report upstream):
 
-1. A description of the issue and the component affected.
-2. The commit hash or release tag the report applies to.
-3. Reproduction steps, a proof-of-concept, or a crash trace if available.
-4. Your assessment of impact (confidentiality / integrity / availability,
-   local vs. remote, authenticated vs. unauthenticated).
-5. Whether you wish to be credited, and under what name.
+- Vulnerabilities in third-party dependencies (OpenSSL, oqs-provider, FFmpeg, DuckDB, Dawn, ICU, HarfBuzz, Wasmer, libjuice, SDL3, and others vendored under `deps/`). Please report those to their respective upstream projects. If an upstream fix requires a response in Yumi Browser (e.g. a version bump or translation-layer change), Yumi Browser will address that separately once the upstream advisory is public.
+- Issues in third-party WebApps distributed through the community page. Those are the responsibility of their developers.
+- Issues in third-party forks or repackaged distributions of Yumi Browser that are not rebuilds of the published source tree.
 
-If you cannot reach the maintainer by email within a reasonable time, you
-may instead open a *minimal* private issue on Codeberg using the
-"Security report" template, **without exploit details**, asking for a
-secure contact channel.
+## Response Expectations
 
----
+Yumi Browser is maintained by a solo developer. Response capacity is finite, and response time depends on the severity and complexity of the report. In general:
 
-## 3. What to Expect
+- Acknowledgement of receipt: best-effort, typically within a few days.
+- Triage and initial assessment: depends on complexity.
+- Fix, advisory publication, and coordinated disclosure: handled through the GitHub Security Advisory the reporter opened.
 
-This is a single-maintainer project. The following are intentions, not SLAs:
+There is no bug bounty program. The project is grateful for responsible disclosure and will credit reporters in the published advisory if the reporter wishes.
 
-- **Acknowledgement** of the report: within 7 days.
-- **Initial triage** (in scope / out of scope, severity estimate): within
-  14 days.
-- **Coordinated disclosure window:** typically up to 90 days from
-  acknowledgement, extendable by mutual agreement if the fix is complex
-  or coordinated with upstream dependencies.
-- **Fix release:** the fix will be released as a tagged version with notes
-  in `CHANGELOG.md`. Reporters who wish to be credited will be listed in
-  the changelog entry and (optionally) in a published advisory.
+## Safe Harbor
 
-If a report is determined to be out of scope, you will be told so and given
-the reasoning.
+Security research conducted in good faith, consistent with this policy, is welcomed. The project does not intend to pursue legal action against researchers who:
 
----
+- Make a good-faith effort to avoid privacy violations, service disruption, and destruction of data.
+- Report vulnerabilities through the private channel described above rather than publicly.
+- Do not access, modify, or exfiltrate data belonging to other users beyond what is necessary to demonstrate the vulnerability.
+- Give the project a reasonable opportunity to address the issue before public disclosure.
 
-## 4. Supported Versions
+This safe harbor is a statement of project policy. It does not bind third parties (cloud providers, other users, etc.). See also [LEGAL.md](LEGAL.md).
 
-Yumi Browser is currently **pre-alpha**. Until a 1.0 release is tagged, only
-the `main` branch is supported and only the latest tagged pre-release (if
-any) will receive security fixes. Once 1.0 ships, this section will be
-updated with a concrete support matrix in line with the README's stated
-five-year stability goal.
+## Related Documents
 
-| Version | Supported          |
-| ------- | ------------------ |
-| `main`  | :white_check_mark: |
-| < 1.0   | best effort, latest pre-release only |
-
----
-
-## 5. Cryptographic Notes
-
-Yumi's security claims rest on the following primitives, used as documented
-in `include/crypto.h` and `src/crypto/`:
-
-- **ML-DSA-87** (post-quantum signatures, via OpenSSL + oqs-provider)
-- **ML-KEM-1024** (post-quantum KEM, via OpenSSL + oqs-provider)
-- **Hybrid classical + post-quantum** construction
-- **Skein-1024** (hashing, public-domain reference implementation)
-- **Threefish-1024** (block cipher / AEAD, public-domain reference
-  implementation)
-
-Reports that demonstrate a *misuse* of these primitives by Yumi (wrong
-mode, missing authentication, predictable nonce, key-reuse, malleable
-encoding, side-channel in Yumi-specific glue code, etc.) are explicitly
-in scope and welcomed.
-
-The cryptographic stack and wire protocol have **not yet undergone a formal
-third-party audit.** Closing that gap is a stated funding priority.
-Independent review reports — even informal ones — are extremely valuable
-and will be treated with the same disclosure process described above.
-
----
-
-## 6. Safe Harbor
-
-We will not pursue legal action against researchers who:
-
-- Make a good-faith effort to comply with this policy,
-- Avoid privacy violations, destruction of data, and degradation of service
-  for users other than themselves,
-- Give the project a reasonable opportunity to fix the issue before public
-  disclosure,
-- Do not exploit the issue beyond what is necessary to demonstrate it.
-
-If in doubt, ask first.
-
----
-
-Thank you for helping keep Yumi Browser and its users safe.
+- [LEGAL.md](LEGAL.md) — Project notices.
+- [docs/11-threat-model.md](docs/11-threat-model.md) — What Yumi Browser is designed to defend against, and what it is not.
+- [docs/23-development-focus.md](docs/23-development-focus.md) — Current security-related development work (MISRA-C, Frama-C, external review).

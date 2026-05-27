@@ -1,3 +1,21 @@
+/*
+ * gpu.h - WebGPU rendering context: wgpu-native device, surface, and immediate-mode rectangle pipeline used as the base GPU context for all binding layers.
+ * Copyright (C) 2026 DevNullIsaac
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 /**
  * @file gpu.h
  * @brief WebGPU rendering context for Yumi Browser.

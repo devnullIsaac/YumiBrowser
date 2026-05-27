@@ -1,0 +1,19 @@
+# Recommended Deployment
+
+Yumi Browser is primarily distributed as a **Flatpak via Flathub**. Flatpak is the intended baseline deployment and provides meaningful sandboxing without requiring any configuration beyond normal app installation — no VM setup, no manual hardening, no technical knowledge beyond "install this app." Flatpak uses bubblewrap under the hood to isolate the application from the host filesystem and restricts access to system resources through portals. For the large majority of users, the Flatpak sandbox plus Yumi's architectural defenses (Wasmer isolation, hybrid KEM, per-group data scoping) is the intended security posture.
+
+For users with elevated threat models — journalists in hostile environments, activists under surveillance pressure, security researchers — running Yumi additionally inside a virtual machine provides a further layer of isolation. The VM recommendation is defense in depth, not a minimum requirement.
+
+Sandboxing is a stacked mitigation, not an admission that the tool is broken. Security-conscious users run *everything* they care about in sandboxes — browsers, messaging tools, document editors — not because any individual tool is presumed insecure, but because stacking mitigations is the only robust answer to unknown future bugs. Yumi is designed to stand on its own inside the Flatpak sandbox. The VM is extra.
+
+## On Capability Parity with Mainstream Browsers
+
+Everything Yumi Browser does at the network layer — peer-to-peer connections, NAT traversal, encrypted datagram transport, real-time audio and video streaming between peers — can be done today in Firefox, Chrome, Edge, and every other mainstream browser through WebRTC and WebSockets. Yumi Browser is not doing anything at the protocol level that mainstream browsers cannot already do. What Yumi Browser provides is a stronger set of *architectural defaults*: group cryptography is the only path, the sandboxing model treats every webapp as untrusted, the group registrar is designed to enforce membership at the protocol level, and there is no intermediary service between peers. The primitives are available to any browser. The opinionated composition is what distinguishes Yumi.
+
+## Why the Container Matters
+
+Yumi Browser is designed from the ground up to be secure against network-layer adversaries. The hybrid KEM, the Encrypt-then-MAC AEAD, the signed registrar, the per-group sandbox — these are the primary defenses, and they stand on their own.
+
+The Flatpak sandbox (and, for elevated threat models, an additional VM layer) is not there because the primary defenses are weak. It is there because Yumi Browser builds on a substantial dependency graph — OpenSSL, FFmpeg, DuckDB, Dawn, ICU, HarfBuzz, Wasmer, liboqs, libjuice, and others. Each of those is a serious project with its own security posture, but no project of that size is free of bugs, and bugs in media decoders, font shapers, and database engines have historically been a productive attack surface for anyone who can feed untrusted input to them. Yumi Browser feeds untrusted input to those libraries constantly, by design, because that is what a collaborative browser does.
+
+Defense in depth is the honest answer to this. The first-party code is held to a high standard (MISRA-C with Frama-C annotations, documented crypto constructions, architectural sandbox boundaries). The dependencies are held to their upstreams' standards, which are generally good but not ours to guarantee. The container — Flatpak for the baseline, a VM on top for elevated threat models — contains the blast radius if any dependency has a bug that the first-party code cannot anticipate. Stacking mitigations is how every serious security-conscious deployment works, and Yumi Browser is designed to participate in that stack rather than stand alone against it.

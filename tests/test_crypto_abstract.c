@@ -1,3 +1,21 @@
+/*
+ * test_crypto_abstract.c - 425-assertion test suite for crypto.h/crypto.c: ML-DSA, ML-KEM, FrodoKEM, BP512 ECDH, Skein, HKDF, Threefish AEAD, key combiners.
+ * Copyright (C) 2026 DevNullIsaac
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 /**
  * @file test_crypto_abstract.c
  * @brief Comprehensive test suite for the crypto abstraction layer (crypto.h / crypto.c).

@@ -1,4 +1,22 @@
 /*
+ * net.h - Yumi UDP wire protocol and shared types: wire format, lock-free MPSC ring buffer, channel definitions; all structures designed for heap allocation.
+ * Copyright (C) 2026 DevNullIsaac
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/*
  * net.h — Yumi UDP wire protocol and shared types
  *
  * Wire format, MPSC lock-free ring buffer, channel definitions.

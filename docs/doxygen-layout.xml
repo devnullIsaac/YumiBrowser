@@ -1,0 +1,195 @@
+<doxygenlayout version="1.0">
+  <!-- Navigation index tabs for HTML output -->
+  <navindex>
+    <tab type="mainpage" visible="yes" title=""/>
+    <tab type="user" url="@ref wasm_guest_api" title="WASM Guest API"/>
+    <tab type="user" url="@ref lygia_slang_api" title="LYGIA.slang"/>
+    <tab type="pages" visible="yes" title="" intro=""/>
+    <tab type="modules" visible="no" title="" intro=""/>
+    <tab type="namespaces" visible="yes" title="">
+      <tab type="namespacelist" visible="yes" title="" intro=""/>
+      <tab type="namespacemembers" visible="yes" title="" intro=""/>
+    </tab>
+    <tab type="classes" visible="yes" title="">
+      <tab type="classlist" visible="yes" title="" intro=""/>
+      <tab type="classindex" visible="yes" title=""/>
+      <tab type="hierarchy" visible="yes" title="" intro=""/>
+      <tab type="classmembers" visible="yes" title="" intro=""/>
+    </tab>
+    <tab type="files" visible="yes" title="">
+      <tab type="filelist" visible="yes" title="" intro=""/>
+      <tab type="globals" visible="yes" title="" intro=""/>
+    </tab>
+    <tab type="examples" visible="yes" title="" intro=""/>
+  </navindex>
+
+  <!-- Layout definition for the class documentation pages -->
+  <class>
+    <briefdescription visible="yes"/>
+    <includes visible="$SHOW_HEADERFILE"/>
+    <inheritancegraph visible="$CLASS_GRAPH"/>
+    <collaborationgraph visible="$COLLABORATION_GRAPH"/>
+    <memberdecl>
+      <nestedclasses visible="yes" title=""/>
+      <publictypes visible="yes" title=""/>
+      <services visible="yes" title=""/>
+      <interfaces visible="yes" title=""/>
+      <publicslots visible="yes" title=""/>
+      <signals visible="yes" title=""/>
+      <publicmethods visible="yes" title=""/>
+      <publicstaticmethods visible="yes" title=""/>
+      <publicattributes visible="yes" title=""/>
+      <publicstaticattributes visible="yes" title=""/>
+      <protectedtypes visible="yes" title=""/>
+      <protectedslots visible="yes" title=""/>
+      <protectedmethods visible="yes" title=""/>
+      <protectedstaticmethods visible="yes" title=""/>
+      <protectedattributes visible="yes" title=""/>
+      <protectedstaticattributes visible="yes" title=""/>
+      <packagetypes visible="yes" title=""/>
+      <packagemethods visible="yes" title=""/>
+      <packagestaticmethods visible="yes" title=""/>
+      <packageattributes visible="yes" title=""/>
+      <packagestaticattributes visible="yes" title=""/>
+      <properties visible="yes" title=""/>
+      <events visible="yes" title=""/>
+      <privatetypes visible="yes" title=""/>
+      <privateslots visible="yes" title=""/>
+      <privatemethods visible="yes" title=""/>
+      <privatestaticmethods visible="yes" title=""/>
+      <privateattributes visible="yes" title=""/>
+      <privatestaticattributes visible="yes" title=""/>
+      <friends visible="yes" title=""/>
+      <related visible="yes" title=""/>
+      <membergroups visible="yes"/>
+    </memberdecl>
+    <detaileddescription title=""/>
+    <memberdef>
+      <inlineclasses title=""/>
+      <typedefs title=""/>
+      <enums title=""/>
+      <services title=""/>
+      <interfaces title=""/>
+      <constructors title=""/>
+      <functions title=""/>
+      <related title=""/>
+      <variables title=""/>
+      <properties title=""/>
+      <events title=""/>
+    </memberdef>
+    <allmemberslink visible="yes"/>
+    <usedfiles visible="$SHOW_USED_FILES"/>
+    <authorsection visible="yes"/>
+  </class>
+
+  <!-- Layout definition for the namespace documentation pages -->
+  <namespace>
+    <briefdescription visible="yes"/>
+    <memberdecl>
+      <nestednamespaces visible="yes" title=""/>
+      <constantgroups visible="yes" title=""/>
+      <classes visible="yes" title=""/>
+      <typedefs visible="yes" title=""/>
+      <enums visible="yes" title=""/>
+      <functions visible="yes" title=""/>
+      <variables visible="yes" title=""/>
+      <membergroups visible="yes"/>
+    </memberdecl>
+    <detaileddescription title=""/>
+    <memberdef>
+      <inlineclasses title=""/>
+      <typedefs title=""/>
+      <enums title=""/>
+      <functions title=""/>
+      <variables title=""/>
+    </memberdef>
+    <authorsection visible="yes"/>
+  </namespace>
+
+  <!-- Layout definition for the file documentation pages -->
+  <file>
+    <briefdescription visible="yes"/>
+    <includes visible="$SHOW_INCLUDE_FILES"/>
+    <includegraph visible="$INCLUDE_GRAPH"/>
+    <includedbygraph visible="$INCLUDED_BY_GRAPH"/>
+    <sourcelink visible="$SOURCE_BROWSER"/>
+    <memberdecl>
+      <classes visible="yes" title=""/>
+      <namespaces visible="yes" title=""/>
+      <constantgroups visible="yes" title=""/>
+      <defines visible="yes" title=""/>
+      <typedefs visible="yes" title=""/>
+      <enums visible="yes" title=""/>
+      <functions visible="yes" title=""/>
+      <variables visible="yes" title=""/>
+      <membergroups visible="yes"/>
+    </memberdecl>
+    <detaileddescription title=""/>
+    <memberdef>
+      <inlineclasses title=""/>
+      <defines title=""/>
+      <typedefs title=""/>
+      <enums title=""/>
+      <functions title=""/>
+      <variables title=""/>
+    </memberdef>
+    <authorsection visible="yes"/>
+  </file>
+
+  <!-- Layout definition for the group documentation pages -->
+  <group>
+    <briefdescription visible="yes"/>
+    <groupgraph visible="$GROUP_GRAPHS"/>
+    <memberdecl>
+      <nestedgroups visible="yes" title=""/>
+      <dirs visible="yes" title=""/>
+      <files visible="yes" title=""/>
+      <namespaces visible="yes" title=""/>
+      <classes visible="yes" title=""/>
+      <defines visible="yes" title=""/>
+      <typedefs visible="yes" title=""/>
+      <enums visible="yes" title=""/>
+      <enumvalues visible="yes" title=""/>
+      <functions visible="yes" title=""/>
+      <variables visible="yes" title=""/>
+      <signals visible="yes" title=""/>
+      <publicslots visible="yes" title=""/>
+      <protectedslots visible="yes" title=""/>
+      <privateslots visible="yes" title=""/>
+      <events visible="yes" title=""/>
+      <properties visible="yes" title=""/>
+      <friends visible="yes" title=""/>
+      <membergroups visible="yes"/>
+    </memberdecl>
+    <detaileddescription title=""/>
+    <memberdef>
+      <pagedocs/>
+      <inlineclasses title=""/>
+      <defines title=""/>
+      <typedefs title=""/>
+      <enums title=""/>
+      <enumvalues title=""/>
+      <functions title=""/>
+      <variables title=""/>
+      <signals title=""/>
+      <publicslots title=""/>
+      <protectedslots title=""/>
+      <privateslots title=""/>
+      <events title=""/>
+      <properties title=""/>
+      <friends title=""/>
+    </memberdef>
+    <authorsection visible="yes"/>
+  </group>
+
+  <!-- Layout definition for the directory documentation pages -->
+  <directory>
+    <briefdescription visible="yes"/>
+    <directorygraph visible="$DIRECTORY_GRAPH"/>
+    <memberdecl>
+      <dirs visible="yes"/>
+      <files visible="yes"/>
+    </memberdecl>
+    <detaileddescription title=""/>
+  </directory>
+</doxygenlayout>
