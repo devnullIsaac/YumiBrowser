@@ -2,9 +2,11 @@
 
 # Yumi Browser
 
-> **Preview:** see [Preview.webm](Preview.webm) for a short video preview of Yumi Browser in action.
+> **Preview:** see [Preview.webm](Preview.webm) for a short video preview of Yumi Browser in action — the host runtime, Dashboard UI, group chat, media gallery, and video playback are all running in that recording. You can build the project today and run it yourself; see [Get Yumi](#get-yumi).
 
-> **⚠ Pre-Alpha Software** — Yumi is in active early development. The architecture, protocols, and host runtime are taking shape; the user interface and webapp surface are not yet stable enough for general use. See [Project Status](#project-status).
+> **Video credit:** the footage shown inside the Yumi media-player webapp in the preview is *Wing It!*, an open movie by the Blender Studio / Blender Foundation, used under **CC BY 4.0** — *(CC) Blender Foundation | studio.blender.org*. *Wing It!* is used here purely to demonstrate Yumi Browser's video pipeline during this early alpha; all creative credit for the film belongs to the Blender Foundation and the *Wing It!* production team. Full attribution and license terms are in [THIRD_PARTY.md](THIRD_PARTY.md#14-wing-it-video-content-preview-video-and-demo-webapp).
+
+> **⚠ Alpha Software** — Yumi is a working alpha. The host runtime, the Dashboard, sandboxed WASM execution, group chat, media gallery, and the post-quantum crypto and networking stacks are implemented and runnable today. The preview runs the **Dashboard itself acting as a webapp** for demonstration purposes — the full Dashboard/webapp separation (where regular webapps run as isolated, offscreen-composited instances distinct from the Dashboard supervisor) is still **work in progress** and not 100% complete. What is also *not* yet done: an independent third-party security review, full MISRA-C / Frama-C coverage, and platforms beyond Linux x86_64. See [Project Status](#project-status) for the honest scorecard.
 
 **Yumi is a browser for your friends.**
 
@@ -30,7 +32,7 @@ Discord, Slack, Google Workspace, Teams — they all make you rent a room from a
 
 ## Built to Last
 
-Yumi is pre-alpha today because we are building the foundation to last decades.
+Yumi is an early alpha today because we are building the foundation to last decades.
 
 - **5-year baseline stability (design goal)**: A Yumi installation is designed to keep working, joining groups, and interoperating with peers for at least five years from release without forced migration.
 - **20-year aspirational target**: The architecture — sandbox model, group registrar, cryptographic construction, wire protocol — is designed to stay put.
@@ -91,6 +93,21 @@ Want the full architecture deep-dive? Start with [00 — Architectural Overview]
 Yumi Browser is intended for users aged 13 and older. There is no global feed, no account system, and no telemetry — a user's data lives on their own device and on the devices of the peers in groups they have joined. Group membership is the unit of access, and parents or guardians who want to supervise a younger user's participation should do so by deciding which groups that user is in.
 
 A dedicated join-lock feature for supervising installations is sketched in the future plans — see [docs/24-roadmap.md#parental-control](docs/24-roadmap.md#parental-control). Until it ships, operating-system-level controls (for example, GNOME Parental Controls / malcontent on Linux) are the recommended way to gate installation and use of the application.
+
+---
+
+## What You Can Do Right Now
+
+In the current alpha build, on Linux x86_64, you can:
+
+- Build Yumi Browser from source with `build.sh` (debug or `--release`).
+- Launch the host runtime and see the Dashboard come up on SDL3 + WebGPU.
+- Run sandboxed WebAssembly modules inside the host, including the dev `--webapp app.wasm` single-app mode. **Note:** the clean Dashboard/webapp separation — regular webapps running as fully isolated, offscreen-composited instances distinct from the Dashboard supervisor — is still **work in progress**. In the current preview the Dashboard itself acts as a webapp for demonstration; it is not yet the finished isolated-webapp model described in [docs/09-application-model.md](docs/09-application-model.md).
+- Play video end-to-end through the in-browser media player — the [Preview.webm](Preview.webm) recording shows the Blender Foundation's *Wing It!* open movie (CC BY 4.0) running inside the Dashboard-as-webapp demonstration.
+- Exercise the post-quantum cryptographic stack (ML-DSA-87, ML-KEM-1024, FrodoKEM-1344, BrainPool-P512r1, Threefish-1024 + Skein-1024 AEAD) through the bundled test binaries under `build/` (`test_crypto`, `test_crypto_abstract`, `test_sudp_client`, `test_udp_session`, `test_yumi_client`, `test_registrar_full`, etc.).
+- Run the secure UDP transport, group registrar, and Yumi client end-to-end against the included test harnesses.
+
+What is *not* yet in this build: an external security audit, full MISRA-C / Frama-C coverage on first-party code, non-Linux platforms, and a finalized webapp-distribution UX. See [Project Status](#project-status) and [docs/23-development-focus.md](docs/23-development-focus.md).
 
 ---
 
@@ -171,13 +188,17 @@ Third-party dependencies bundled under `deps/` are distributed under their own l
 
 ## Project Status
 
-Yumi Browser is **pre-alpha** software under active development by a solo maintainer. The host runtime, group registrar, networking stack, and cryptographic abstraction are progressing; the Dashboard UI, webapp surface, and user-facing flows are still in design. Until the UI/UX has been finalized (a working Figma design feeding into the Dashboard is the gating milestone), the project is not yet at the point where general users should be installing it.
+Yumi Browser is **alpha** software under active development by a solo maintainer. It builds and runs on Linux x86_64 today. The host runtime, the Dashboard, sandboxed WebAssembly execution, the group registrar, the post-quantum cryptographic abstraction, the secure UDP networking stack, the WebGPU rendering pipeline, group chat, the media gallery, and end-to-end video playback (demonstrated in [Preview.webm](Preview.webm)) are all implemented and functional. People can clone the repository, run [build.sh](build.sh), and launch a working browser.
 
-There has been no independent third-party security review.
+What alpha means here:
 
-The cryptographic construction (Threefish-1024-CTR with Skein-1024-MAC under Encrypt-then-MAC) is implemented carefully against published primitives, but the composition as shipped has not been independently reviewed. If you need a formally reviewed stack today, Yumi is not the right fit yet.
+- **Dashboard/webapp separation is still work in progress.** The architecture (see [docs/09-application-model.md](docs/09-application-model.md)) calls for regular webapps to run as fully isolated, offscreen-composited instances distinct from the Dashboard supervisor. That separation is not yet 100% complete; the current preview runs the Dashboard itself acting as a webapp for demonstration purposes.
+- **No independent third-party security review yet.** External cryptographic review of the AEAD composition is on the current funding plan — see [docs/23-development-focus.md](docs/23-development-focus.md).
+- **The cryptographic construction (Threefish-1024-CTR with Skein-1024-MAC under Encrypt-then-MAC) is implemented carefully against the published primitives**, and the choice of large-block / large-state primitives is a deliberate conservative bet against future cryptanalytic progress on 128-bit-block ciphers; see [docs/04-cryptography.md](docs/04-cryptography.md) and [docs/08-stability-commitment.md](docs/08-stability-commitment.md) for the rationale. The composition has not yet been externally reviewed.
+- **MISRA-C compliance and Frama-C annotations are an ongoing objective**, not a completed state, on first-party Yumi Browser code. See [docs/23-development-focus.md](docs/23-development-focus.md).
+- **Linux (x86_64) is the only currently supported platform.** Windows, macOS, Android, and iOS are intended for future support; the C core and WASM sandbox model are designed to be portable.
 
-MISRA-C compliance and Frama-C annotations are an ongoing objective, not a completed state. See [docs/23-development-focus.md](docs/23-development-focus.md) for details.
+If you need a formally reviewed cryptographic stack today, Yumi is not yet the right fit. If you want to try a working peer-to-peer, group-first, sandboxed-WASM browser on Linux and follow the project as it hardens, this is the right time to start.
 
 ### AI-Assisted Development
 
