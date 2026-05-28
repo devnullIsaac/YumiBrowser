@@ -1,0 +1,84 @@
+app-id: com.yumi.browser
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: yumibrowser
+
+finish-args:
+  # GPU access for WebGPU / Dawn
+  - --device=dri
+  # Wayland + X11 fallback
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  # Network access (webapp networking, STUN/TURN)
+  - --share=network
+  # Audio playback (FFmpeg multimedia)
+  - --socket=pulseaudio
+  # Library path for bundled .so files
+  - --env=LD_LIBRARY_PATH=/app/lib
+  # OpenSSL modules path for oqs-provider
+  - --env=OPENSSL_MODULES=/app/lib/ossl-modules
+
+modules:
+  - name: yumibrowser
+    buildsystem: simple
+    build-options:
+      # Dawn fetches deps, liboqs may need git clone — need network during build
+      build-args:
+        - --share=network
+    build-commands:
+      # ── Build everything from source inside the SDK ────────────
+      - bash build.sh --release --flatpak
+
+      # ── Install binary ─────────────────────────────────────────
+      - install -Dm755 release/yumibrowser ${FLATPAK_DEST}/bin/yumibrowser
+
+      # ── Shared libraries ───────────────────────────────────────
+      - mkdir -p ${FLATPAK_DEST}/lib
+      - cp -P release/*.so* ${FLATPAK_DEST}/lib/
+
+      # ── OpenSSL modules (oqs-provider, post-quantum crypto) ────
+      - |
+        if [ -d release/ossl-modules ]; then
+          mkdir -p ${FLATPAK_DEST}/lib/ossl-modules
+          cp -P release/ossl-modules/* ${FLATPAK_DEST}/lib/ossl-modules/
+        fi
+
+      # ── Slang shader standard modules ──────────────────────────
+      - |
+        mkdir -p ${FLATPAK_DEST}/share/com.yumi.browser
+        for d in release/slang-standard-module-*; do
+          if [ -d "$d" ]; then
+            cp -r "$d" ${FLATPAK_DEST}/share/com.yumi.browser/"$(basename "$d")"
+          fi
+        done
+
+      # ── WASM webapps and dashboard ─────────────────────────────
+      - mkdir -p ${FLATPAK_DEST}/share/com.yumi.browser/dashboard
+      - mkdir -p ${FLATPAK_DEST}/share/com.yumi.browser/webapps
+      - |
+        if [ -d release/dashboard ]; then
+          cp release/dashboard/*.wasm ${FLATPAK_DEST}/share/com.yumi.browser/dashboard/
+        fi
+      - |
+        if [ -d release/webapps ]; then
+          cp release/webapps/*.wasm ${FLATPAK_DEST}/share/com.yumi.browser/webapps/
+        fi
+
+      # ── Icons ──────────────────────────────────────────────────
+      - |
+        for size in 512 256 128 64 32; do
+          if [ -f icon/icon${size}.png ]; then
+            install -Dm644 icon/icon${size}.png \
+              ${FLATPAK_DEST}/share/icons/hicolor/${size}x${size}/apps/com.yumi.browser.png
+          fi
+        done
+
+      # ── Desktop file and AppStream metadata ────────────────────
+      - install -Dm644 com.yumi.browser.desktop ${FLATPAK_DEST}/share/applications/com.yumi.browser.desktop
+      - install -Dm644 com.yumi.browser.metainfo.xml ${FLATPAK_DEST}/share/metainfo/com.yumi.browser.metainfo.xml
+
+    sources:
+      - type: dir
+        path: .
