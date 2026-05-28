@@ -54,16 +54,15 @@ modules:
           fi
         done
 
-      # ── WASM webapps and dashboard ─────────────────────────────
-      - mkdir -p ${FLATPAK_DEST}/share/com.yumi.browser/dashboard
-      - mkdir -p ${FLATPAK_DEST}/share/com.yumi.browser/webapps
+      # ── WASM demo webapp ───────────────────────────────────────
+      # The runtime's resolve_demo_wasm() (src/main.c) looks for the
+      # demo next to the binary at <binary_dir>/demo/demo.wasm. With the
+      # binary installed at /app/bin/yumibrowser, that resolves to
+      # /app/bin/demo/demo.wasm.
       - |
-        if [ -d release/dashboard ]; then
-          cp release/dashboard/*.wasm ${FLATPAK_DEST}/share/com.yumi.browser/dashboard/
-        fi
-      - |
-        if [ -d release/webapps ]; then
-          cp release/webapps/*.wasm ${FLATPAK_DEST}/share/com.yumi.browser/webapps/
+        if [ -f release/demo/demo.wasm ]; then
+          install -Dm644 release/demo/demo.wasm \
+            ${FLATPAK_DEST}/bin/demo/demo.wasm
         fi
 
       # ── Icons ──────────────────────────────────────────────────
