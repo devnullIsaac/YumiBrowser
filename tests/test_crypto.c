@@ -28,6 +28,7 @@
 
 #include "internal.h"
 #include "crypto.h"
+#include "static_memory.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -908,6 +909,7 @@ static void test_encrypt_decrypt_multiple_epochs(void) {
  * ═══════════════════════════════════════════════════════════════════ */
 
 int main(void) {
+    initialize_yumi_browser_static_heaps();
     if (yumi_crypto_init() != YUMI_CRYPTO_OK) {
         fprintf(stderr, "FATAL: yumi_crypto_init() failed\n");
         return 1;

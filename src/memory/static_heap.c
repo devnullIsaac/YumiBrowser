@@ -16,66 +16,136 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "memory.h"
+#include "static_memory.h"
 #include <stdbool.h>
 #include <stdatomic.h>
-#include <stddef.h>
 #include <threads.h>
-#include <assert.h>
 
-#ifndef YUMI_CACHE_LINE_SIZE
-#define YUMI_CACHE_LINE_SIZE 64
-#endif
-
-#ifndef YUMI_STATIC_HEAP_MAX_THREADS
-#define YUMI_STATIC_HEAP_MAX_THREADS 64
-#endif
-_Static_assert(YUMI_STATIC_HEAP_MAX_THREADS > 0,
-    "YUMI_STATIC_HEAP_MAX_THREADS must be > 0");
-
-#ifndef YUMI_STATIC_HEAP_REFILL_BATCH
-#define YUMI_STATIC_HEAP_REFILL_BATCH 32
-#endif
-
-#ifndef YUMI_STATIC_HEAP_TLS_CACHE_SIZE
-#define YUMI_STATIC_HEAP_TLS_CACHE_SIZE 64
-#endif
-_Static_assert(YUMI_STATIC_HEAP_TLS_CACHE_SIZE >= YUMI_STATIC_HEAP_REFILL_BATCH,
-    "TLS cache must be at least one refill batch in size");
-_Static_assert((YUMI_STATIC_HEAP_TLS_CACHE_SIZE & 1) == 0,
-    "TLS cache size must be even (spill takes half)");
-
-#if defined(__GNUC__) || defined(__clang__)
-#define YUMI_LIKELY(x)        __builtin_expect(!!(x), 1)
-#define YUMI_UNLIKELY(x)      __builtin_expect(!!(x), 0)
-#define YUMI_COLD             __attribute__((cold, noinline))
-#define YUMI_ALWAYS_INLINE    __attribute__((always_inline)) inline
-#define YUMI_DO_NOT_OPTIMIZE(p) __asm__ __volatile__("" : : "g"(p) : "memory")
-#else
-#define YUMI_LIKELY(x)        (x)
-#define YUMI_UNLIKELY(x)      (x)
-#define YUMI_COLD
-#define YUMI_ALWAYS_INLINE    inline
-#define YUMI_DO_NOT_OPTIMIZE(p) ((void)(p))
-#endif
-
-#ifdef YUMI_STATIC_HEAP_DEBUG
-#define YUMI_STATIC_HEAP_DEBUG_RELEASE_CHECK(x, item) do { \
-    assert((char*)(item) >= (char*)&x##_buffer[0]); \
-    assert((char*)(item) < ((char*)&x##_buffer[0]) + sizeof(x##_buffer)); \
-    for (int32_t _dbg_i = 0; _dbg_i < x##_tls.top; ++_dbg_i) { \
-        assert(x##_tls.stack[_dbg_i] != (item) && "static_heap: double release detected"); \
-    } \
-} while (0)
-#define YUMI_STATIC_HEAP_DEBUG_LEASE_MARK(x, item) do { \
-    assert((char*)(item) >= (char*)&x##_buffer[0]); \
-    assert((char*)(item) < ((char*)&x##_buffer[0]) + sizeof(x##_buffer)); \
-} while (0)
-#else
-#define YUMI_STATIC_HEAP_DEBUG_RELEASE_CHECK(x, item) ((void)0)
-#define YUMI_STATIC_HEAP_DEBUG_LEASE_MARK(x, item)    ((void)0)
-#endif
-
+/* =====================================================================
+ * static_heap(x, y) — per-type, fixed-capacity, lock-free-on-hot-path
+ * object allocator.
+ *
+ * --------------------------------------------------------------------
+ * WHAT IT IS
+ * --------------------------------------------------------------------
+ * One macro expansion produces a complete allocator dedicated to a
+ * single user type `x`, backed by exactly `y` statically reserved
+ * objects (no malloc, ever). It exposes:
+ *
+ *   yumi_memory_alloc_error_enum lease_##x   (x** outNode);
+ *   yumi_memory_alloc_error_enum release_##x (x*  node);
+ *   void                         init_static_heap_##x(void);
+ *
+ * plus inline "_inline" and "_ptr" variants for hot call sites that
+ * want to skip the extern-call overhead or the error-code return.
+ *
+ * --------------------------------------------------------------------
+ * DATA LAYOUT
+ * --------------------------------------------------------------------
+ * Every allocatable object lives inside an *intrusive list node*:
+ *
+ *     struct x_linked_list_node { x bindings; struct ... *next; };
+ *
+ * The `bindings` field is placed at offset 0 and a `_Static_assert`
+ * enforces this at every macro instantiation. That invariant is the
+ * sole reason the `release_*` path may cast a user `x*` directly to a
+ * `x_linked_list_node` — see MISRA-C.md, Deviation 2 (Rule 11.3).
+ *
+ * Storage is a single static array `x_buffer[y]`. Because the array
+ * is defined as an array of node structs, every byte the caller can
+ * ever observe is, at the language level, a member of a fully typed
+ * node object. This keeps strict-aliasing analysis (and MISRA Rule
+ * 11.3 reasoning) clean: there is no type-punning, only the
+ * standard-blessed "pointer to first member <-> pointer to struct"
+ * conversion (C11 §6.7.2.1 ¶15).
+ *
+ * --------------------------------------------------------------------
+ * THREE-TIER FREE LIST
+ * --------------------------------------------------------------------
+ * To stay fast under contention while remaining bounded and correct,
+ * free nodes live in one of three places at any moment:
+ *
+ *   Tier 1 — Thread-Local Stack (`x_tls`):
+ *     A small per-thread array (YUMI_STATIC_HEAP_TLS_CACHE_SIZE),
+ *     cache-line aligned. Lease/release on the hot path is a single
+ *     bounds check + array store/load — no atomics, no locks.
+ *
+ *   Tier 2 — Global Singly-Linked Free List (`x_linked_list_node_head`)
+ *     Protected by `x_global_mtx` (C11 mtx_t). Touched only when the
+ *     TLS cache is empty (refill) or full (spill). Refill takes up to
+ *     YUMI_STATIC_HEAP_REFILL_BATCH nodes at once, capped at half of
+ *     the remaining global pool so a single greedy thread cannot
+ *     starve siblings. Spill returns half the TLS cache in one move.
+ *
+ *   Tier 3 — Lock-Free Recovery Slots (`x_recovery_slots[]`):
+ *     A small array of atomic-headed Treiber stacks indexed by a hash
+ *     of the calling thread id. Used as an emergency fallback when
+ *     the global mutex cannot be acquired (e.g. during early init
+ *     before `call_once` has completed, or in a TSS destructor where
+ *     locking is unsafe). This is what makes the allocator usable in
+ *     contexts where blocking on a mutex would deadlock or crash.
+ *
+ * The TSS destructor `x_tls_flush` ensures that when a thread exits
+ * its cached nodes return to the global pool (or, failing that, to
+ * the recovery slots) — no leaks across the program's lifetime.
+ *
+ * --------------------------------------------------------------------
+ * ERROR MODEL
+ * --------------------------------------------------------------------
+ * Every public entry point returns a `yumi_memory_alloc_error_enum`:
+ *   - INVALID_IN_POINTER / INVALID_OUT_POINTER for NULL arguments
+ *     (defense-in-depth at API boundary, MISRA Dir 4.7 compliant).
+ *   - INTERNAL_ERROR  when TSS / mutex init failed (system-level).
+ *   - UNAVAILABLE_MEMORY when the pool is exhausted (recoverable).
+ *   - SUCCESS otherwise.
+ * The `_ptr` variants are provided for performance-critical sites
+ * that have already validated their pointers and treat exhaustion as
+ * a NULL return; they never read or write through a NULL pointer.
+ *
+ * --------------------------------------------------------------------
+ * WHY THIS IS MISRA-C SAFE
+ * --------------------------------------------------------------------
+ *   * Dir 4.12 (no dynamic memory): the entire allocator is static
+ *     storage. No malloc/free is ever called by code generated from
+ *     this macro. The whole point of the design.
+ *   * Rule 11.3 (pointer-type casts): only two cast sites per
+ *     instantiation, both standard-blessed first-member conversions,
+ *     both enforced by `_Static_assert(offsetof(...bindings)==0)`.
+ *     Formally documented as Deviation 2 in MISRA-C.md.
+ *   * Rule 21.3 (no malloc family): satisfied trivially.
+ *   * Rule 8.4 (declarations precede definitions): public entry
+ *     points have matching declarations in `memory.h`.
+ *   * Rule 8.7 / 8.9: helpers used in only one TU are `static`; the
+ *     static buffer has the smallest scope C allows for the design.
+ *   * Rule 9.1 (no read of uninitialised storage): the buffer is
+ *     zero-initialised at definition; `init_static_heap_##x` then
+ *     links the freelist before any lease/release is permitted.
+ *   * Rule 14.4 / 15.5 (single point of exit, controlling expr is
+ *     boolean): every function uses a single `res`/`ok` variable
+ *     guarded by `if (res == SUCCESS)` chains and exits at the end.
+ *   * Rule 17.7 (return value used): `mtx_unlock` returns are cast
+ *     to `(void)` explicitly to acknowledge intentional discard.
+ *   * Rule 21.16/21.17 (signal/threads): the file uses C11 threads
+ *     primitives (`mtx_t`, `tss_t`, `call_once`) which are within
+ *     MISRA-C:2025's permitted standard-library subset.
+ *   * Atomics on the recovery path use `_Atomic(uintptr_t)` with
+ *     explicit memory_order arguments — no ad-hoc volatile, no
+ *     reliance on undefined ordering.
+ *
+ * --------------------------------------------------------------------
+ * INVARIANTS A MAINTAINER MUST PRESERVE
+ * --------------------------------------------------------------------
+ *   1. `bindings` MUST remain the first field of the node struct.
+ *      The static_assert will fire otherwise.
+ *   2. A node is in exactly ONE of: TLS stack, global freelist,
+ *      recovery slot, or "leased to the caller". Never two at once.
+ *   3. Global mutex is held only across short, finite, allocation-
+ *      free sequences (no callbacks, no I/O, no nested locks).
+ *   4. The recovery slots are a *fallback*, not a primary path —
+ *      adding fast-path traffic to them would defeat fairness.
+ *   5. `init_static_heap_##x` must be called before any lease; it
+ *      links the buffer and zeroes the recovery slots.
+ * ===================================================================== */
 #define static_heap(x, y) \
 typedef struct x##_linked_list_node { \
     x bindings; \
@@ -429,6 +499,9 @@ static inline void release_##x##_ptr(x* node) \
         (void)x##_spill_to_global(item); \
     } \
 } \
+/* Externally linked thin wrappers. Allow callers in other TUs (and \
+ * the test suite) to use the allocator without seeing the macro \
+ * expansion. The compiler routinely inlines these at LTO. */ \
 yumi_memory_alloc_error_enum release_##x(x* node) \
 { \
     return release_##x##_inline(node); \
@@ -441,11 +514,13 @@ yumi_memory_alloc_error_enum lease_##x(x** outNode) \
 static_heap(ClipboardBuffer, YUMI_BROWSER_MAX_CLIPBOARD_COUNT)
 static_heap(DashboardGroupCtx, YUMI_BROWSER_MAX_DASHBOARD_COUNT)
 static_heap(FileDialogCtx, YUMI_BROWSER_MAX_FILEDIALOG_COUNT)
+static_heap(YumiCryptoHkdfInfoBuf, YUMI_BROWSER_MAX_FILEDIALOG_COUNT)
 
 void initialize_yumi_browser_static_heaps(void)
 {
     init_static_heap_ClipboardBuffer();
     init_static_heap_DashboardGroupCtx();
     init_static_heap_FileDialogCtx();
+    init_static_heap_YumiCryptoHkdfInfoBuf();
 }
 #undef static_heap

@@ -194,8 +194,9 @@ extern "C" {
 #define GR_AUDIT_MAX_BYTES              (25LL * 1024 * 1024)
 #define GR_AUDIT_EST_ROW_BYTES          500
 
-/* Delta merge */
-#define GR_DELTA_MAX_BYTES              (1 * 1024 * 1024)
+/* Delta merge — sized to comfortably hold one max-size webapp record
+ * (perm_data 1 MiB + role_mask 3200 B) plus envelope/header overhead. */
+#define GR_DELTA_MAX_BYTES              (2 * 1024 * 1024)
 #define GR_DELTA_ANOMALY_GAP_MS         (30LL * 24 * 60 * 60 * 1000) /* 30 days */
 
 /* Persist-to-disk prompt threshold (50 MB estimated) */
@@ -207,6 +208,12 @@ extern "C" {
 
 /* Invite wire format */
 #define GR_INVITE_VERSION               3
+
+/* Webapp permissions */
+#define GR_WEBAPP_MAX_PERMS      512u
+#define GR_WEBAPP_PERM_DATA_SIZE 2048u
+#define GR_WEBAPP_PERM_DATA_MAX  (GR_WEBAPP_MAX_PERMS * GR_WEBAPP_PERM_DATA_SIZE)
+#define GR_WEBAPP_ROLE_MASK_MAX  (GR_MAX_ROLES * 64u)
 
 /* ════════════════════════════════════════════════════════════════
  *  Error codes
@@ -262,6 +269,7 @@ typedef enum {
     GR_PERM_ROTATE_EPOCH      = (1 << 8),
     GR_PERM_SIGN_REGISTRAR    = (1 << 9),
     GR_PERM_SET_GROUP_ICON    = (1 << 10),
+    GR_PERM_SET_WEBAPP_ROLES  = (1 << 11),
     GR_PERM_OWNER             = 0xFFFFFFFF,
 } gr_permission_t;
 
@@ -296,6 +304,7 @@ typedef enum {
     GR_CHANGE_GROUP_ICON_SET     = 20,
     GR_CHANGE_GROUP_ICON_REMOVED = 21,
     GR_CHANGE_BOOT_IP_BLOCKED    = 22,
+    GR_CHANGE_WEBAPP_MODIFIED    = 23,
 } gr_change_type_t;
 
 typedef enum {
@@ -364,6 +373,10 @@ typedef struct {
     uint32_t version;
     int64_t  added_at;
     uint8_t  added_by[GR_PEER_ID_LEN];
+    uint8_t *perm_data;      /**< Webapp-defined permission data; NULL if absent. */
+    size_t   perm_data_len;  /**< Length of perm_data; 0..GR_WEBAPP_PERM_DATA_MAX. */
+    uint8_t *role_mask;      /**< Admin-set role mask; NULL if absent. */
+    size_t   role_mask_len;  /**< Length of role_mask; 0..GR_WEBAPP_ROLE_MASK_MAX. */
 } gr_webapp_t;
 
 typedef struct {
@@ -938,6 +951,50 @@ gr_error_t gr_webapp_list(const gr_registrar_t *reg, gr_webapp_t *out,
  * @return GR_OK on success.
  */
 gr_error_t gr_webapp_count(const gr_registrar_t *reg, uint32_t *out);
+
+/**
+ * @brief Fetch a single webapp including its permission blobs.
+ * @param[in,out] reg   Registrar.
+ * @param[in]     hash  Webapp content hash.
+ * @param[out]    out   Receives the webapp; caller must gr_free(out->perm_data)
+ *                      and gr_free(out->role_mask) when done.
+ * @return GR_OK or GR_ERR_NOT_FOUND.
+ */
+gr_error_t gr_webapp_get(gr_registrar_t *reg,
+                         const uint8_t hash[GR_SERVICE_HASH_LEN],
+                         gr_webapp_t *out);
+
+/**
+ * @brief Replace only the webapp-defined @c perm_data record.
+ *        @c role_mask is left untouched.
+ * @param[in,out] reg            Registrar.
+ * @param[in]     hash           Webapp content hash.
+ * @param[in]     perm_data      New perm_data bytes (may be NULL when len==0).
+ * @param[in]     perm_data_len  0..GR_WEBAPP_PERM_DATA_MAX; 0 clears the record.
+ * @param[in]     signer         Identity with GR_PERM_ADD_WEBAPP.
+ * @return GR_OK, GR_ERR_NOT_FOUND, GR_ERR_UNAUTHORIZED, or GR_ERR_SIZE_EXCEEDED.
+ */
+gr_error_t gr_webapp_update_perm_data(gr_registrar_t *reg,
+                                      const uint8_t hash[GR_SERVICE_HASH_LEN],
+                                      const uint8_t *perm_data,
+                                      size_t perm_data_len,
+                                      const gr_identity_t *signer);
+
+/**
+ * @brief Replace only the admin-set @c role_mask record.
+ *        @c perm_data is left untouched.
+ * @param[in,out] reg            Registrar.
+ * @param[in]     hash           Webapp content hash.
+ * @param[in]     role_mask      New role_mask bytes (may be NULL when len==0).
+ * @param[in]     role_mask_len  0..GR_WEBAPP_ROLE_MASK_MAX; 0 clears the record.
+ * @param[in]     signer         Identity with GR_PERM_SET_WEBAPP_ROLES.
+ * @return GR_OK, GR_ERR_NOT_FOUND, GR_ERR_UNAUTHORIZED, or GR_ERR_SIZE_EXCEEDED.
+ */
+gr_error_t gr_webapp_update_role_mask(gr_registrar_t *reg,
+                                      const uint8_t hash[GR_SERVICE_HASH_LEN],
+                                      const uint8_t *role_mask,
+                                      size_t role_mask_len,
+                                      const gr_identity_t *signer);
 /** @} */
 
 /** @name Server Management

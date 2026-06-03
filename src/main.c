@@ -27,7 +27,7 @@
 #include "dashboard_runtime.h"
 #include "crypto.h"
 #include "ffmpeg_loader.h"
-#include "memory.h"
+#include "static_memory.h"
 
 /* ------------------------------------------------------------------ */
 /*  XDG data directory resolution                                      */

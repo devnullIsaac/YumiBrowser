@@ -45,7 +45,7 @@ int64_t gr_timestamp_ns(void) {
 }
 
 uint64_t gr_schema_version(void) {
-    return 2;
+    return 3;
 }
 
 void gr_free(void *ptr) {

@@ -64,6 +64,7 @@
  */
 
 #include "crypto.h"
+#include "static_memory.h"
 #include <openssl/provider.h>
 #include <openssl/evp.h>
 #include <openssl/err.h>
@@ -1869,6 +1870,7 @@ static void test_full_handshake(void) {
  * ═══════════════════════════════════════════════════════════════════ */
 
 int main(void) {
+    initialize_yumi_browser_static_heaps();
     fprintf(stdout, "╔═══════════════════════════════════════════╗\n");
     fprintf(stdout, "║  Yumi Crypto Abstraction — Test Suite     ║\n");
     fprintf(stdout, "╚═══════════════════════════════════════════╝\n");

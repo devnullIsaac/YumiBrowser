@@ -7,6 +7,7 @@
  */
 
 #include "crypto.h"
+#include "static_memory.h"
 
 #include <openssl/evp.h>
 #include <openssl/provider.h>
@@ -20,7 +21,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <limits.h>
-
+#include <assert.h>
 #include "skein.h"
 
 /* Skein block processing (Threefish lives inside here) */
@@ -761,28 +762,30 @@ yumi_crypto_err_t yumi_hkdf(
     while (offset < okm_len) {
         /* Build: T(n-1) || info || counter */
         size_t input_len = t_prev_len + info_len + 1;
-        uint8_t *input = malloc(input_len);
-        if (!input) {
+        assert(input_len < sizeof(YumiCryptoHkdfInfoBuf));
+        YumiCryptoHkdfInfoBuf *input = NULL;
+        yumi_memory_alloc_error_enum memRes = lease_YumiCryptoHkdfInfoBuf(&input);
+        if (memRes != YUMI_MEMORY_ALLOC_SUCCESS || input == NULL) {
             yumi_memzero(prk, sizeof(prk));
             return YUMI_CRYPTO_ERR_KDF;
         }
 
         size_t pos = 0;
         if (t_prev_len > 0) {
-            memcpy(input, t_prev, t_prev_len);
+            memcpy(input->info, t_prev, t_prev_len);
             pos += t_prev_len;
         }
         if (info && info_len > 0) {
-            memcpy(input + pos, info, info_len);
+            memcpy(input->info + pos, info, info_len);
             pos += info_len;
         }
-        input[pos] = counter;
+        input->info[pos] = counter;
 
         uint8_t t_cur[YUMI_SKEIN_MAC_LEN];
-        skein1024_mac_internal(prk, YUMI_SKEIN_MAC_LEN, input, input_len, t_cur);
+        skein1024_mac_internal(prk, YUMI_SKEIN_MAC_LEN, input->info, input_len, t_cur);
 
-        yumi_memzero(input, input_len);
-        free(input);
+        yumi_memzero(input->info, input_len);
+        release_YumiCryptoHkdfInfoBuf(input);
 
         size_t to_copy = okm_len - offset;
         if (to_copy > YUMI_SKEIN_MAC_LEN)

@@ -21,7 +21,7 @@
 
 static const char SERIAL_MAGIC[4] = "GREG";
 static const char DELTA_MAGIC[4]  = "GRDT";
-#define SERIAL_VERSION 3
+#define SERIAL_VERSION 4
 
 /* ── Per-type serialize/deserialize helpers ─────────────────────── */
 
@@ -88,15 +88,49 @@ static void ser_webapp(gr_buf_t *b, const gr_webapp_t *w) {
     gr_buf_write_u32(b, w->version);
     gr_buf_write_i64(b, w->added_at);
     gr_buf_write(b, w->added_by, GR_PEER_ID_LEN);
+    gr_buf_write_u32(b, (uint32_t)w->perm_data_len);
+    if (w->perm_data_len > 0) gr_buf_write(b, w->perm_data, w->perm_data_len);
+    gr_buf_write_u32(b, (uint32_t)w->role_mask_len);
+    if (w->role_mask_len > 0) gr_buf_write(b, w->role_mask, w->role_mask_len);
 }
 
-static int de_webapp(gr_reader_t *r, gr_webapp_t *w) {
+static int de_webapp(gr_reader_t *r, gr_webapp_t *w, uint32_t wire_ver) {
     memset(w, 0, sizeof(*w));
     if (gr_read_bytes(r, w->hash, GR_SERVICE_HASH_LEN) != 0) return -1;
     if (gr_read_str(r, w->name, GR_MAX_NAME_LEN) != 0) return -1;
     if (gr_read_u32(r, &w->version) != 0) return -1;
     if (gr_read_i64(r, &w->added_at) != 0) return -1;
     if (gr_read_bytes(r, w->added_by, GR_PEER_ID_LEN) != 0) return -1;
+    if (wire_ver >= 4) {
+        uint32_t len;
+        if (gr_read_u32(r, &len) != 0) return -1;
+        if (len > GR_WEBAPP_PERM_DATA_MAX) return -1;
+        if (len > 0) {
+            w->perm_data = malloc(len);
+            if (!w->perm_data) return -1;
+            if (gr_read_bytes(r, w->perm_data, len) != 0) {
+                free(w->perm_data); w->perm_data = NULL; return -1;
+            }
+            w->perm_data_len = len;
+        }
+        if (gr_read_u32(r, &len) != 0) {
+            free(w->perm_data); w->perm_data = NULL; return -1;
+        }
+        if (len > GR_WEBAPP_ROLE_MASK_MAX) {
+            free(w->perm_data); w->perm_data = NULL; return -1;
+        }
+        if (len > 0) {
+            w->role_mask = malloc(len);
+            if (!w->role_mask) {
+                free(w->perm_data); w->perm_data = NULL; return -1;
+            }
+            if (gr_read_bytes(r, w->role_mask, len) != 0) {
+                free(w->perm_data); free(w->role_mask);
+                w->perm_data = NULL; w->role_mask = NULL; return -1;
+            }
+            w->role_mask_len = len;
+        }
+    }
     return 0;
 }
 
@@ -270,6 +304,14 @@ static gr_error_t db_insert_webapp(gr_registrar_t *reg, const gr_webapp_t *w) {
     duckdb_bind_int32(stmt, 3, (int32_t)w->version);
     duckdb_bind_int64(stmt, 4, w->added_at);
     duckdb_bind_blob(stmt, 5, w->added_by, GR_PEER_ID_LEN);
+    if (w->perm_data && w->perm_data_len > 0)
+        duckdb_bind_blob(stmt, 6, w->perm_data, w->perm_data_len);
+    else
+        duckdb_bind_null(stmt, 6);
+    if (w->role_mask && w->role_mask_len > 0)
+        duckdb_bind_blob(stmt, 7, w->role_mask, w->role_mask_len);
+    else
+        duckdb_bind_null(stmt, 7);
     duckdb_result res;
     duckdb_state st = duckdb_execute_prepared(stmt, &res);
     duckdb_destroy_result(&res);
@@ -370,6 +412,7 @@ gr_error_t gr_serialize(const gr_registrar_t *reg, gr_serialize_mode_t mode,
         if (!arr) { gr_buf_free(&buf); GR_UNLOCK((gr_registrar_t *)reg); return GR_ERR_OUT_OF_MEMORY; }
         uint32_t actual; gr_webapp_list(reg, arr, n, &actual);
         for (uint32_t i = 0; i < actual; i++) ser_webapp(&buf, &arr[i]);
+        for (uint32_t i = 0; i < actual; i++) { free(arr[i].perm_data); free(arr[i].role_mask); }
         free(arr);
     }
 
@@ -489,8 +532,12 @@ gr_error_t gr_deserialize(gr_registrar_t *reg,
 
     if (gr_read_u32(&r, &count) != 0) goto rollback_ser;
     for (uint32_t i = 0; i < count; i++) {
-        gr_webapp_t w; if (de_webapp(&r, &w) != 0) goto rollback_ser;
-        if ((err = db_insert_webapp(reg, &w)) != GR_OK) goto rollback_err;
+        gr_webapp_t w;
+        if (de_webapp(&r, &w, ver) != 0) goto rollback_ser;
+        err = db_insert_webapp(reg, &w);
+        free(w.perm_data);
+        free(w.role_mask);
+        if (err != GR_OK) goto rollback_err;
     }
 
     for (uint32_t t = 0; t < GR_SERVER_TYPE_COUNT; t++) {
@@ -593,6 +640,7 @@ gr_error_t gr_serialize_delta(const gr_registrar_t *reg, uint32_t since_version,
         if (!arr) { gr_buf_free(&buf); GR_UNLOCK((gr_registrar_t *)reg); return GR_ERR_OUT_OF_MEMORY; }
         uint32_t actual; gr_webapp_list(reg, arr, n, &actual);
         for (uint32_t i = 0; i < actual; i++) ser_webapp(&buf, &arr[i]);
+        for (uint32_t i = 0; i < actual; i++) { free(arr[i].perm_data); free(arr[i].role_mask); }
         free(arr);
     }
 
@@ -715,6 +763,14 @@ static gr_error_t db_delta_upsert_webapp(gr_registrar_t *reg, const gr_webapp_t 
     duckdb_bind_int32(s, 3, (int32_t)w->version);
     duckdb_bind_int64(s, 4, w->added_at);
     duckdb_bind_blob(s, 5, w->added_by, GR_PEER_ID_LEN);
+    if (w->perm_data && w->perm_data_len > 0)
+        duckdb_bind_blob(s, 6, w->perm_data, w->perm_data_len);
+    else
+        duckdb_bind_null(s, 6);
+    if (w->role_mask && w->role_mask_len > 0)
+        duckdb_bind_blob(s, 7, w->role_mask, w->role_mask_len);
+    else
+        duckdb_bind_null(s, 7);
     duckdb_result res;
     duckdb_state st = duckdb_execute_prepared(s, &res);
     duckdb_destroy_result(&res);
@@ -764,12 +820,18 @@ static int64_t max3_i64(int64_t a, int64_t b, int64_t c) {
 /* ── Helper: free delta arrays ─────────────────────────────────── */
 
 static void delta_state_free(gr_peer_t *peers, gr_role_t *roles,
-                             gr_webapp_t *webapps,
+                             gr_webapp_t *webapps, uint32_t webapp_count,
                              gr_server_t **servers,
                              gr_epoch_t *epochs) {
     free(peers);
     free(roles);
-    free(webapps);
+    if (webapps) {
+        for (uint32_t i = 0; i < webapp_count; i++) {
+            free(webapps[i].perm_data);
+            free(webapps[i].role_mask);
+        }
+        free(webapps);
+    }
     for (uint32_t t = 0; t < GR_SERVER_TYPE_COUNT; t++)
         free(servers[t]);
     if (epochs) {
@@ -887,7 +949,7 @@ gr_error_t gr_apply_delta(gr_registrar_t *reg,
             delta_webapps = calloc(dwc, sizeof(gr_webapp_t));
             if (!delta_webapps) goto parse_fail;
             for (uint32_t i = 0; i < dwc; i++)
-                if (de_webapp(&r, &delta_webapps[i]) != 0) goto parse_fail;
+                if (de_webapp(&r, &delta_webapps[i], wire_ver) != 0) goto parse_fail;
         }
 
         /* Servers */
@@ -1215,7 +1277,7 @@ gr_error_t gr_apply_delta(gr_registrar_t *reg,
     }
     if (!gr_txn_commit(reg)) { gr_txn_rollback(reg); goto db_fail; }
 
-    delta_state_free(delta_peers, delta_roles, delta_webapps,
+    delta_state_free(delta_peers, delta_roles, delta_webapps, dwc,
                      delta_servers, delta_epochs);
 
     /* Enforce audit log retention after successful merge */
@@ -1227,19 +1289,19 @@ gr_error_t gr_apply_delta(gr_registrar_t *reg,
     return GR_OK;
 
 parse_fail:
-    delta_state_free(delta_peers, delta_roles, delta_webapps,
+    delta_state_free(delta_peers, delta_roles, delta_webapps, dwc,
                      delta_servers, delta_epochs);
     GR_UNLOCK(reg);
     return GR_ERR_SERIALIZATION;
 
 oom_fail:
-    delta_state_free(delta_peers, delta_roles, delta_webapps,
+    delta_state_free(delta_peers, delta_roles, delta_webapps, dwc,
                      delta_servers, delta_epochs);
     GR_UNLOCK(reg);
     return GR_ERR_OUT_OF_MEMORY;
 
 db_fail:
-    delta_state_free(delta_peers, delta_roles, delta_webapps,
+    delta_state_free(delta_peers, delta_roles, delta_webapps, dwc,
                      delta_servers, delta_epochs);
     GR_UNLOCK(reg);
     return GR_ERR_DB;

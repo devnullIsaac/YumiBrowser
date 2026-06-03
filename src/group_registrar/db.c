@@ -407,6 +407,14 @@ static bool gr_db_migrate(duckdb_connection con) {
                              "  schema_version UBIGINT NOT NULL"
                              ")");
 
+  /* Version 2→3: add per-webapp permission blobs */
+  if (ret == true)
+    ret = gr_db_exec(con, "ALTER TABLE gr_webapps "
+                          "ADD COLUMN IF NOT EXISTS perm_data BLOB");
+  if (ret == true)
+    ret = gr_db_exec(con, "ALTER TABLE gr_webapps "
+                          "ADD COLUMN IF NOT EXISTS role_mask BLOB");
+
   if (ret == true) {
     duckdb_prepared_statement stmt = NULL;
     if (duckdb_prepare(con,
@@ -503,13 +511,15 @@ bool gr_db_init_schema(duckdb_connection con) {
       "  modified_at BIGINT"
       ")",
 
-      /* ── gr_webapps (5 columns) ─────────────────────────────── */
+      /* ── gr_webapps (7 columns) ─────────────────────────────── */
       "CREATE TABLE IF NOT EXISTS gr_webapps ("
       "  hash BLOB PRIMARY KEY,"
       "  name VARCHAR(128),"
       "  version INTEGER,"
       "  added_at BIGINT,"
-      "  added_by BLOB"
+      "  added_by BLOB,"
+      "  perm_data BLOB,"
+      "  role_mask BLOB"
       ")",
 
       /* ── gr_servers (8 columns) ─────────────────────────────── */
@@ -603,7 +613,7 @@ bool gr_db_init_schema(duckdb_connection con) {
   static const char *role_cols[] = {"role_id",  "name",       "permissions",
                                     "sign_key", "created_at", "modified_at"};
   static const char *webapp_cols[] = {"hash", "name", "version", "added_at",
-                                      "added_by"};
+                                      "added_by", "perm_data", "role_mask"};
   static const char *server_cols[] = {
       "id_hash",        "type",          "ip",
       "port",           "sign_key",      "service_hash",
@@ -643,7 +653,7 @@ bool gr_db_init_schema(duckdb_connection con) {
     ret = false;
   if (ret == true &&
       validate_table_columns(con, sizeof("gr_webapps"), "gr_webapps",
-                             webapp_cols, 5) == false)
+                             webapp_cols, 7) == false)
     ret = false;
   if (ret == true &&
       validate_table_columns(con, sizeof("gr_servers"), "gr_servers",
@@ -652,7 +662,7 @@ bool gr_db_init_schema(duckdb_connection con) {
   if (ret == true &&
       validate_table_columns(con, sizeof("gr_epochs"), "gr_epochs", epoch_cols,
                              5) == false)
-    return false;
+    ret = false;
   if (ret == true &&
       validate_table_columns(con, sizeof("gr_audit_log"), "gr_audit_log",
                              audit_cols, 10) == false)
@@ -1086,7 +1096,7 @@ gr_error_t gr_prepare_statements(gr_registrar_t *reg) {
 
   /* ── WebApp ────────────────────────────────────────────────── */
   if ((ret == GR_OK) && (duckdb_prepare(c,
-       "INSERT INTO gr_webapps VALUES ($1,$2,$3,$4,$5)",
+       "INSERT INTO gr_webapps VALUES ($1,$2,$3,$4,$5,$6,$7)",
                      &reg->ps_webapp_insert) != DuckDBSuccess))
       ret = GR_ERR_DB;
   if ((ret == GR_OK) && (duckdb_prepare(c,
@@ -1098,12 +1108,25 @@ gr_error_t gr_prepare_statements(gr_registrar_t *reg) {
                      &reg->ps_webapp_check) != DuckDBSuccess))
       ret = GR_ERR_DB;
   if ((ret == GR_OK) && (duckdb_prepare(c,
-       "SELECT hash, name, version, added_at, added_by "
+       "SELECT hash, name, version, added_at, added_by, perm_data, role_mask "
        "FROM gr_webapps LIMIT $1",
                      &reg->ps_webapp_list) != DuckDBSuccess))
       ret = GR_ERR_DB;
   if ((ret == GR_OK) && (duckdb_prepare(c, "SELECT COUNT(*) FROM gr_webapps",
                      &reg->ps_webapp_count) != DuckDBSuccess))
+      ret = GR_ERR_DB;
+  if ((ret == GR_OK) && (duckdb_prepare(c,
+       "SELECT hash, name, version, added_at, added_by, perm_data, role_mask "
+       "FROM gr_webapps WHERE hash=$1",
+                     &reg->ps_webapp_get) != DuckDBSuccess))
+      ret = GR_ERR_DB;
+  if ((ret == GR_OK) && (duckdb_prepare(c,
+       "UPDATE gr_webapps SET perm_data=$2 WHERE hash=$1",
+                     &reg->ps_webapp_update_perm_data) != DuckDBSuccess))
+      ret = GR_ERR_DB;
+  if ((ret == GR_OK) && (duckdb_prepare(c,
+       "UPDATE gr_webapps SET role_mask=$2 WHERE hash=$1",
+                     &reg->ps_webapp_update_role_mask) != DuckDBSuccess))
       ret = GR_ERR_DB;
 
   /* ── Server ────────────────────────────────────────────────── */
@@ -1368,7 +1391,7 @@ gr_error_t gr_prepare_statements(gr_registrar_t *reg) {
                      &reg->ps_delta_role_upsert) != DuckDBSuccess))
       ret = GR_ERR_DB;
   if ((ret == GR_OK) && (duckdb_prepare(c,
-       "INSERT OR REPLACE INTO gr_webapps VALUES ($1,$2,$3,$4,$5)",
+       "INSERT OR REPLACE INTO gr_webapps VALUES ($1,$2,$3,$4,$5,$6,$7)",
                      &reg->ps_delta_webapp_upsert) != DuckDBSuccess))
       ret = GR_ERR_DB;
   if ((ret == GR_OK) && (duckdb_prepare(c,
@@ -1443,6 +1466,9 @@ void gr_destroy_statements(gr_registrar_t *reg) {
   duckdb_destroy_prepare(&reg->ps_webapp_check);
   duckdb_destroy_prepare(&reg->ps_webapp_list);
   duckdb_destroy_prepare(&reg->ps_webapp_count);
+  duckdb_destroy_prepare(&reg->ps_webapp_get);
+  duckdb_destroy_prepare(&reg->ps_webapp_update_perm_data);
+  duckdb_destroy_prepare(&reg->ps_webapp_update_role_mask);
 
   /* Server */
   duckdb_destroy_prepare(&reg->ps_server_insert);

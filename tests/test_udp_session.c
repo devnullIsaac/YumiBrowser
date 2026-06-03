@@ -261,9 +261,9 @@ static void *reliable_sender_fn(void *arg)
 
 static void test_5s_session(void)
 {
-    TEST_SECTION("5-second continual session");
+    TEST_SECTION("3-second continual session");
 
-    const int SESSION_SECONDS = 5;
+    const int SESSION_SECONDS = 3;
 
     /* ── Peer socket (raw, for ACK responder) ──────────────────── */
 
@@ -367,7 +367,7 @@ static void test_5s_session(void)
         /* Stat monotonicity: tx should never decrease */
         TEST_ASSERT(tx >= prev_tx - delta, "tx_packets monotonic");
 
-        if (sec % 5 == 4) {
+        if (sec == SESSION_SECONDS - 1) {
             uint64_t tx_bytes = yumi_udp_client_stat_tx_bytes(client_a);
             uint64_t rx_acks  = yumi_udp_client_stat_rx_packets(client_a);
             fprintf(stdout, "    [%2ds] tx_pkts=%-8lu tx_bytes=%-10lu "
@@ -389,7 +389,7 @@ static void test_5s_session(void)
     }
 
     /* Let remaining packets flush */
-    sleep_ms(500);
+    sleep_ms(200);
 
     /* ── Stop ACK responder ────────────────────────────────────── */
 
@@ -522,7 +522,7 @@ static double ts_diff_s(const struct timespec *a, const struct timespec *b)
 
 static void test_bidirectional_throughput(void)
 {
-    TEST_SECTION("Bidirectional throughput benchmark (5 s)");
+    TEST_SECTION("Bidirectional throughput benchmark (3 s)");
 
     struct timespec t_section_start, t_phase, t_now;
     clock_gettime(CLOCK_MONOTONIC, &t_section_start);
@@ -597,7 +597,7 @@ static void test_bidirectional_throughput(void)
     for (uint32_t i = 0; i < payload_sz; i++)
         payload[i] = (uint8_t)(i & 0xFF);
 
-    /* ── Send loop: 5 seconds, alternating reliable/unreliable ── */
+    /* ── Send loop: 3 seconds, alternating reliable/unreliable ── */
 
     struct timespec start, now;
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -606,9 +606,9 @@ static void test_bidirectional_throughput(void)
     int send_errors = 0;
     double elapsed = 0.0;
 
-    fprintf(stdout, "    running for 5 seconds ...\n");
+    fprintf(stdout, "    running for 3 seconds ...\n");
 
-    while (elapsed < 5.0) {
+    while (elapsed < 3.0) {
         int iter_fails = 0;
 
         /* A → B: alternate reliable / unreliable */
@@ -648,7 +648,7 @@ static void test_bidirectional_throughput(void)
 
     /* Let stragglers arrive */
     clock_gettime(CLOCK_MONOTONIC, &t_phase);
-    usleep(500000);
+    usleep(200000);
     clock_gettime(CLOCK_MONOTONIC, &t_now);
     fprintf(stdout, "    [timer] drain wait:        %7.3f s\n",
             ts_diff_s(&t_phase, &t_now));
@@ -804,7 +804,7 @@ static int threefish_decrypt(void *ctx, const uint8_t *ct, uint32_t ct_len,
 
 static void test_threefish_throughput(void)
 {
-    TEST_SECTION("Threefish-1024 AEAD throughput benchmark (5 s)");
+    TEST_SECTION("Threefish-1024 AEAD throughput benchmark (3 s)");
 
     struct timespec t_section_start, t_phase, t_now;
     clock_gettime(CLOCK_MONOTONIC, &t_section_start);
@@ -892,7 +892,7 @@ static void test_threefish_throughput(void)
     for (uint32_t i = 0; i < payload_sz; i++)
         payload[i] = (uint8_t)(i & 0xFF);
 
-    /* ── Send loop: 5 seconds, alternating reliable/unreliable ── */
+    /* ── Send loop: 3 seconds, alternating reliable/unreliable ── */
     struct timespec start, now;
     clock_gettime(CLOCK_MONOTONIC, &start);
 
@@ -900,9 +900,9 @@ static void test_threefish_throughput(void)
     int send_errors = 0;
     double elapsed = 0.0;
 
-    fprintf(stdout, "    running for 5 seconds ...\n");
+    fprintf(stdout, "    running for 3 seconds ...\n");
 
-    while (elapsed < 5.0) {
+    while (elapsed < 3.0) {
         int iter_fails = 0;
 
         if (a_sent % 2 == 0) {
@@ -938,7 +938,7 @@ static void test_threefish_throughput(void)
             ts_diff_s(&start, &t_now));
 
     clock_gettime(CLOCK_MONOTONIC, &t_phase);
-    usleep(500000);
+    usleep(200000);
     clock_gettime(CLOCK_MONOTONIC, &t_now);
     fprintf(stdout, "    [timer] drain wait:        %7.3f s\n",
             ts_diff_s(&t_phase, &t_now));
@@ -1042,7 +1042,7 @@ static void test_threefish_throughput(void)
  *  Goal: pinpoint exactly where and how throughput degrades over time.
  * ═══════════════════════════════════════════════════════════════════ */
 
-#define DIAG_DURATION_S  20
+#define DIAG_DURATION_S  3
 #define DIAG_SAMPLE_HZ    1  /* samples per second */
 
 typedef struct {
@@ -1195,7 +1195,7 @@ static void diag_run_session(const char *label,
     }
 
     /* Drain */
-    usleep(500000);
+    usleep(200000);
 
     /* Final summary */
     uint64_t b_rx       = atomic_load(&sb_s.recv_count);

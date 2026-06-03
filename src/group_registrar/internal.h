@@ -106,6 +106,9 @@ struct gr_registrar {
     duckdb_prepared_statement ps_webapp_check;
     duckdb_prepared_statement ps_webapp_list;
     duckdb_prepared_statement ps_webapp_count;
+    duckdb_prepared_statement ps_webapp_get;
+    duckdb_prepared_statement ps_webapp_update_perm_data;
+    duckdb_prepared_statement ps_webapp_update_role_mask;
 
     duckdb_prepared_statement ps_server_insert;
     duckdb_prepared_statement ps_server_delete;

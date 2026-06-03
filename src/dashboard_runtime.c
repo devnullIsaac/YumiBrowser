@@ -25,7 +25,7 @@
 
 #include "dashboard_runtime.h"
 #include "webapp_runtime.h"
-#include "memory.h"
+#include "static_memory.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -2271,6 +2271,7 @@ int32_t dashboard_gr_webapp_list(DashboardRuntime *d, uint32_t gi,
     if (e != GR_OK) { free(buf); return (int32_t)e; }
     for (uint32_t i = 0; i < got; i++)
         gr_webapp_marshal(&buf[i], out_records + (size_t)i * 304);
+    for (uint32_t i = 0; i < got; i++) { gr_free(buf[i].perm_data); gr_free(buf[i].role_mask); }
     free(buf);
     return (int32_t)total;
 }

@@ -506,7 +506,7 @@ static void test_schema_column_counts(void) {
         { "gr_header",    16 },
         { "gr_peers",     12 },
         { "gr_roles",      6 },
-        { "gr_webapps",    5 },
+        { "gr_webapps",    7 },
         { "gr_servers",    8 },
         { "gr_epochs",     5 },
         { "gr_audit_log",  10 },

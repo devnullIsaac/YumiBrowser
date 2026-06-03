@@ -34,7 +34,8 @@
  *   7.  Group icon — set, get, hash, remove, size limit, video icon,
  *       unauthorized, double-remove
  *   8.  WebApp management — add, remove, is_authorized, list, count,
- *       unauthorized, duplicate
+ *       unauthorized, duplicate, get, update (perm_data + role_mask blobs),
+ *       blob roundtrip, list blob content, size limits, NULL safety
  *   9.  Server management — add, remove, list, count, types,
  *       unauthorized
  *  10.  Behavioral analysis — actor_burst, mutation_rate, admin_score,
@@ -874,6 +875,172 @@ static void test_webapp_management(void)
     T(gr_webapp_add(NULL, &wa, &owner) == GR_ERR_INVALID_PARAM, "add(NULL)");
     T(gr_webapp_count(NULL, &wc) == GR_ERR_INVALID_PARAM, "count(NULL)");
     T(gr_webapp_remove(NULL, wa.hash, &owner) == GR_ERR_INVALID_PARAM, "remove(NULL)");
+
+    /* 8k. get() — existing webapp, no blobs */
+    gr_webapp_t got;
+    T(gr_webapp_get(r, wa2.hash, &got) == GR_OK, "get existing webapp");
+    T(memcmp(got.hash, wa2.hash, GR_SERVICE_HASH_LEN) == 0, "get: hash matches");
+    T(strcmp(got.name, "media-player") == 0, "get: name matches");
+    T(got.perm_data == NULL, "get: no perm_data initially");
+    T(got.role_mask == NULL, "get: no role_mask initially");
+    gr_free(got.perm_data);
+    gr_free(got.role_mask);
+
+    /* 8l. get() — not found */
+    T(gr_webapp_get(r, unknown_hash, &got) == GR_ERR_NOT_FOUND, "get unknown");
+
+    /* 8m. Add webapp with both blobs */
+    gr_webapp_t wa3;
+    memset(&wa3, 0, sizeof(wa3));
+    memset(wa3.hash, 0xDD, GR_SERVICE_HASH_LEN);
+    strncpy(wa3.name, "perm-app", GR_MAX_NAME_LEN);
+    wa3.version = 3;
+    wa3.added_at = gr_timestamp_ms();
+    memcpy(wa3.added_by, owner.peer_id, GR_PEER_ID_LEN);
+    uint8_t init_perm[16];
+    for (int i = 0; i < 16; i++) init_perm[i] = (uint8_t)(i + 1);
+    uint8_t init_role[8];
+    memset(init_role, 0xF0, sizeof(init_role));
+    for (int i = 0; i < 8; i++) init_role[i] = (uint8_t)(0xF0 + i);
+    wa3.perm_data = init_perm;
+    wa3.perm_data_len = sizeof(init_perm);
+    wa3.role_mask = init_role;
+    wa3.role_mask_len = sizeof(init_role);
+    T(gr_webapp_add(r, &wa3, &owner) == GR_OK, "add webapp with blobs");
+
+    /* 8n. get() roundtrip verifies both blobs */
+    T(gr_webapp_get(r, wa3.hash, &got) == GR_OK, "get blob-webapp");
+    T(got.perm_data != NULL && got.perm_data_len == 16, "get: perm_data_len 16");
+    T(got.perm_data != NULL && memcmp(got.perm_data, init_perm, 16) == 0,
+      "get: perm_data content correct");
+    T(got.role_mask != NULL && got.role_mask_len == 8, "get: role_mask_len 8");
+    T(got.role_mask != NULL && memcmp(got.role_mask, init_role, 8) == 0,
+      "get: role_mask content correct");
+    gr_free(got.perm_data);
+    gr_free(got.role_mask);
+
+    /* 8o. update_perm_data() — only perm_data changes, role_mask preserved */
+    uint8_t new_perm[32];
+    memset(new_perm, 0x55, sizeof(new_perm));
+    T(gr_webapp_update_perm_data(r, wa3.hash, new_perm, sizeof(new_perm), &owner) == GR_OK,
+      "update perm_data only");
+    T(gr_webapp_get(r, wa3.hash, &got) == GR_OK, "get after perm-only update");
+    T(got.perm_data_len == 32, "updated perm_data_len == 32");
+    T(got.perm_data != NULL && memcmp(got.perm_data, new_perm, 32) == 0,
+      "updated perm_data content");
+    T(got.role_mask != NULL && got.role_mask_len == 8, "role_mask preserved (len 8)");
+    T(got.role_mask != NULL && memcmp(got.role_mask, init_role, 8) == 0,
+      "role_mask content preserved");
+    gr_free(got.perm_data);
+    gr_free(got.role_mask);
+
+    /* 8p. update_role_mask() — only role_mask changes, perm_data preserved */
+    uint8_t new_role[4] = { 0xA0, 0xB0, 0xC0, 0xD0 };
+    T(gr_webapp_update_role_mask(r, wa3.hash, new_role, sizeof(new_role), &owner) == GR_OK,
+      "update role_mask only");
+    T(gr_webapp_get(r, wa3.hash, &got) == GR_OK, "get after role-only update");
+    T(got.perm_data != NULL && got.perm_data_len == 32, "perm_data preserved (len 32)");
+    T(got.perm_data != NULL && memcmp(got.perm_data, new_perm, 32) == 0,
+      "perm_data content preserved");
+    T(got.role_mask_len == 4, "updated role_mask_len == 4");
+    T(got.role_mask != NULL && memcmp(got.role_mask, new_role, 4) == 0,
+      "updated role_mask content");
+    gr_free(got.perm_data);
+    gr_free(got.role_mask);
+
+    /* 8q. clear each field independently with len=0, then re-set both */
+    T(gr_webapp_update_perm_data(r, wa3.hash, NULL, 0, &owner) == GR_OK,
+      "clear perm_data with len=0");
+    T(gr_webapp_get(r, wa3.hash, &got) == GR_OK, "get after perm clear");
+    T(got.perm_data == NULL, "perm_data cleared");
+    T(got.role_mask != NULL, "role_mask still present after perm clear");
+    gr_free(got.perm_data);
+    gr_free(got.role_mask);
+
+    uint8_t pd_blob[10]; memset(pd_blob, 0xAB, sizeof(pd_blob));
+    uint8_t rm_blob[6];  memset(rm_blob, 0xCD, sizeof(rm_blob));
+    T(gr_webapp_update_perm_data(r, wa3.hash, pd_blob, sizeof(pd_blob), &owner) == GR_OK,
+      "set perm_data");
+    T(gr_webapp_update_role_mask(r, wa3.hash, rm_blob, sizeof(rm_blob), &owner) == GR_OK,
+      "set role_mask");
+    uint32_t wlcount2 = 0;
+    gr_webapp_t wlist2[5];
+    T(gr_webapp_list(r, wlist2, 5, &wlcount2) == GR_OK, "list with blob webapps");
+    T(wlcount2 == 2, "2 webapps in list (wa2 + wa3)");
+    int found_wa3 = 0;
+    for (uint32_t li = 0; li < wlcount2; li++) {
+        if (memcmp(wlist2[li].hash, wa3.hash, GR_SERVICE_HASH_LEN) == 0) {
+            found_wa3 = 1;
+            T(wlist2[li].perm_data != NULL && wlist2[li].perm_data_len == 10,
+              "list: wa3 perm_data_len 10");
+            T(wlist2[li].perm_data != NULL &&
+              memcmp(wlist2[li].perm_data, pd_blob, 10) == 0,
+              "list: wa3 perm_data content");
+            T(wlist2[li].role_mask != NULL && wlist2[li].role_mask_len == 6,
+              "list: wa3 role_mask_len 6");
+            T(wlist2[li].role_mask != NULL &&
+              memcmp(wlist2[li].role_mask, rm_blob, 6) == 0,
+              "list: wa3 role_mask content");
+        }
+        gr_free(wlist2[li].perm_data);
+        gr_free(wlist2[li].role_mask);
+    }
+    T(found_wa3, "wa3 found in list");
+
+    /* 8r. size limit enforcement on each update function */
+    T(gr_webapp_update_perm_data(r, wa3.hash, pd_blob, GR_WEBAPP_PERM_DATA_MAX + 1,
+                                 &owner) == GR_ERR_SIZE_EXCEEDED,
+      "oversized perm_data rejected");
+    T(gr_webapp_update_role_mask(r, wa3.hash, rm_blob, GR_WEBAPP_ROLE_MASK_MAX + 1,
+                                 &owner) == GR_ERR_SIZE_EXCEEDED,
+      "oversized role_mask rejected");
+
+    /* 8r-bis. gr_webapp_add must also enforce size limits */
+    {
+        gr_webapp_t wa_big = wa3;
+        wa_big.hash[0] ^= 0x77;
+        wa_big.perm_data = pd_blob; wa_big.perm_data_len = GR_WEBAPP_PERM_DATA_MAX + 1;
+        wa_big.role_mask = NULL;    wa_big.role_mask_len = 0;
+        T(gr_webapp_add(r, &wa_big, &owner) == GR_ERR_SIZE_EXCEEDED,
+          "add: oversized perm_data rejected");
+        wa_big.perm_data = NULL;    wa_big.perm_data_len = 0;
+        wa_big.role_mask = rm_blob; wa_big.role_mask_len = GR_WEBAPP_ROLE_MASK_MAX + 1;
+        T(gr_webapp_add(r, &wa_big, &owner) == GR_ERR_SIZE_EXCEEDED,
+          "add: oversized role_mask rejected");
+    }
+
+    /* 8s. unauthorized — perm_data needs ADD_WEBAPP, role_mask needs SET_WEBAPP_ROLES */
+    T(gr_webapp_update_perm_data(r, wa3.hash, pd_blob, sizeof(pd_blob), &member)
+        == GR_ERR_UNAUTHORIZED,
+      "update perm_data unauthorized");
+    T(gr_webapp_update_role_mask(r, wa3.hash, rm_blob, sizeof(rm_blob), &member)
+        == GR_ERR_UNAUTHORIZED,
+      "update role_mask unauthorized");
+
+    /* 8t. not found */
+    T(gr_webapp_update_perm_data(r, unknown_hash, pd_blob, sizeof(pd_blob), &owner)
+        == GR_ERR_NOT_FOUND,
+      "update perm_data unknown webapp");
+    T(gr_webapp_update_role_mask(r, unknown_hash, rm_blob, sizeof(rm_blob), &owner)
+        == GR_ERR_NOT_FOUND,
+      "update role_mask unknown webapp");
+
+    /* 8u. NULL param safety */
+    T(gr_webapp_get(NULL, wa3.hash, &got) == GR_ERR_INVALID_PARAM, "get(NULL reg)");
+    T(gr_webapp_get(r, NULL, &got) == GR_ERR_INVALID_PARAM, "get(NULL hash)");
+    T(gr_webapp_get(r, wa3.hash, NULL) == GR_ERR_INVALID_PARAM, "get(NULL out)");
+    T(gr_webapp_update_perm_data(NULL, wa3.hash, NULL, 0, &owner) == GR_ERR_INVALID_PARAM,
+      "update_perm_data(NULL reg)");
+    T(gr_webapp_update_perm_data(r, NULL, NULL, 0, &owner) == GR_ERR_INVALID_PARAM,
+      "update_perm_data(NULL hash)");
+    T(gr_webapp_update_perm_data(r, wa3.hash, NULL, 0, NULL) == GR_ERR_INVALID_PARAM,
+      "update_perm_data(NULL signer)");
+    T(gr_webapp_update_role_mask(NULL, wa3.hash, NULL, 0, &owner) == GR_ERR_INVALID_PARAM,
+      "update_role_mask(NULL reg)");
+    T(gr_webapp_update_role_mask(r, NULL, NULL, 0, &owner) == GR_ERR_INVALID_PARAM,
+      "update_role_mask(NULL hash)");
+    T(gr_webapp_update_role_mask(r, wa3.hash, NULL, 0, NULL) == GR_ERR_INVALID_PARAM,
+      "update_role_mask(NULL signer)");
 
     gr_close(r);
 }
