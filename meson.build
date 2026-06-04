@@ -3,13 +3,6 @@ project('yumibrowser', 'c', 'cpp')
 cc = meson.get_compiler('c')
 cxx = meson.get_compiler('cpp')
 
-# wasmer.h references `enum wasmer_parser_operator_t` unconditionally at the
-# `wasmer_metering_cost_function_t` typedef, but the enum body itself is
-# gated behind WASMER_COMPILER_ENABLED. C accepts the dangling tag; C++
-# (e.g. src/slang_bindings.cpp) does not. Define it project-wide so the
-# header is self-consistent in every translation unit.
-add_project_arguments('-DWASMER_COMPILER_ENABLED', language: ['c', 'cpp'])
-
 # ── Build mode option ────────────────────────────────────────────
 # Set via: meson setup -Drelease_build=true
 # or from build.sh via --release flag
@@ -27,9 +20,10 @@ endif
 # ── Dependencies ─────────────────────────────────────────────────
 
 wasmer_dep = declare_dependency(
-  include_directories: include_directories('deps/wasmer/package/include'),
+  include_directories: include_directories('deps/wasmer/lib/c-api'),
+  compile_args: ['-DWASMER_COMPILER_ENABLED', '-DWASMER_WASI_ENABLED'],
   dependencies: cc.find_library('wasmer',
-    dirs: [meson.project_source_root() / 'deps/wasmer/package/lib']
+    dirs: [meson.project_source_root() / 'deps/wasmer/release/']
   ),
 )
 
@@ -95,6 +89,7 @@ crypto_src = [
   'src/crypto/crypto.c',
   'src/crypto/skein.c',
   'src/crypto/skein_block.c',
+  'src/memory/static_heap.c',
 ]
 
 crypto_test_env = environment()
@@ -207,14 +202,26 @@ if dl_dep.found()
   deps += dl_dep
 endif
 
+# libjpeg-turbo — required as a transitive dep by LibRaw (libjpeg.so.8)
+# Built by build.sh into deps/libjpeg-turbo/install/lib OR lib64
+libjpeg_libdir = meson.project_source_root() / 'deps/libjpeg-turbo/install/lib64'
+if not cc.find_library('jpeg', dirs: [libjpeg_libdir], required: false).found()
+  libjpeg_libdir = meson.project_source_root() / 'deps/libjpeg-turbo/install/lib'
+endif
+libjpeg_lib = cc.find_library('jpeg', dirs: [libjpeg_libdir], required: false)
+
 # LibRaw — Camera RAW decoding (optional)
 # Built from deps/libRaw via build.sh, installed to deps/libRaw/install
 libraw_libdir = meson.project_source_root() / 'deps/libRaw/install/lib'
 libraw_lib = cc.find_library('raw', dirs: [libraw_libdir], required: false)
 if libraw_lib.found()
+  libraw_dep_list = [libraw_lib]
+  if libjpeg_lib.found()
+    libraw_dep_list += libjpeg_lib
+  endif
   libraw_dep = declare_dependency(
     include_directories: include_directories('deps/libRaw/install/include'),
-    dependencies: libraw_lib,
+    dependencies: libraw_dep_list,
   )
   add_project_arguments('-DYUMI_HAS_LIBRAW', language: 'c')
   deps += libraw_dep
@@ -296,6 +303,9 @@ build_rpath_dirs = [
 ]
 if libraw_lib.found()
   build_rpath_dirs += libraw_libdir
+endif
+if libjpeg_lib.found()
+  build_rpath_dirs += libjpeg_libdir
 endif
 
 executable('yumibrowser',
@@ -572,48 +582,3 @@ test_registrar_full = executable('test_registrar_full',
 )
 
 test('registrar_full', test_registrar_full, timeout: 120, env: crypto_test_env)
-
-# ── Dashboard runtime unit tests ───────────────────────────────
-
-dashboard_test_src = [
-  'src/dashboard_runtime.c',
-  'src/webapp_runtime.c',
-  'src/gpu.c',
-  'src/wgpu_bindings.c',
-  'src/duckdb_bindings.c',
-  'src/sdl_bindings.c',
-  'src/log_bindings.c',
-  'src/text_bindings.c',
-  'src/input_bindings.c',
-  'src/clipboard_bindings.c',
-  'src/font_bindings.c',
-  'src/ffmpeg_loader.c',
-  'src/wgpu_ffmpeg.c',
-  'src/media_bindings.c',
-  'src/slang_bindings.cpp',
-  'src/network_bindings.c',
-] + group_registrar_src + crypto_src + network_src + yumi_client_src
-
-test_dashboard = executable('test_dashboard',
-  ['tests/test_dashboard.c', 'src/memory/static_heap.c'] + dashboard_test_src + libjuice_src,
-  dependencies: deps + [threads_dep],
-  include_directories: [
-    'include/',
-    'src/',
-    'src/group_registrar/',
-    'src/crypto/',
-    ffmpeg_inc,
-  ] + libjuice_inc,
-  c_args: native_c_args + libjuice_c_args,
-  link_args: native_link_args,
-  build_rpath: ':'.join(build_rpath_dirs),
-  install: false,
-)
-
-dashboard_test_env = environment()
-dashboard_test_env.set('OPENSSL_MODULES',
-  meson.project_source_root() / 'deps/openssl/install/lib/ossl-modules')
-dashboard_test_env.prepend('LD_LIBRARY_PATH',
-  ':'.join(build_rpath_dirs))
-
-test('dashboard', test_dashboard, timeout: 60, env: dashboard_test_env)

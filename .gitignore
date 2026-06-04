@@ -70,3 +70,23 @@ deps/**
 
 # clangd file
 .clangd
+
+# Preventing accidental submission of codes
+tests/test_unistring.c
+tests/test_treeview.c
+tests/test_toolbox.c
+tests/test_textbox.c
+tests/test_picturebox.c
+tests/test_nodegraph.c
+tests/test_docbox.c
+test/test_docbox2.c
+tests/test_designer.c
+tests/test_clay_layout.c
+tests/test_calendar.c
+
+sdk/gui/**
+sdk/shaders/**
+
+demo/**
+
+contrib/**
