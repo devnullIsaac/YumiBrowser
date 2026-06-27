@@ -248,7 +248,7 @@ gr_error_t gr_db_fetch_i32_scalar(duckdb_result *result, int32_t *out);
  *   3: actor_id       8: prev_hash
  *   4: target_id      9: timestamp_ns
  */
-void gr_audit_read_row(duckdb_data_chunk chunk, idx_t row,
+gr_error_t gr_audit_read_row(duckdb_data_chunk chunk, idx_t row,
                        gr_audit_entry_t *out);
 
 bool gr_db_init_schema(duckdb_connection con);

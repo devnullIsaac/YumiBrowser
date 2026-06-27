@@ -27,40 +27,64 @@
 #include "internal.h"
 #include "buf.h"
 
-/* ── Column layout shared by every gr_audit_log SELECT used here.
- *    0: entry_hash         5: signature
- *    1: timestamp          6: registrar_version
- *    2: change_type        7: detail
- *    3: actor_id           8: prev_hash
- *    4: target_id          9: timestamp_ns
- * --------------------------------------------------------------- */
-
-void gr_audit_read_row(duckdb_data_chunk chunk, idx_t row,
+gr_error_t gr_audit_read_row(duckdb_data_chunk chunk, idx_t row,
                        gr_audit_entry_t *out) {
-    if (chunk == NULL || out == NULL)
-        return;
+    if ((chunk == NULL) || (out == NULL))
+        return GR_ERR_INVALID_PARAM;
+    gr_error_t res = GR_OK;
     int32_t ct = 0, rv = 0;
     memset(out, 0, sizeof(*out));
-    gr_db_vec_get_blob(duckdb_data_chunk_get_vector(chunk, 0), row,
+    res = gr_db_vec_get_blob(duckdb_data_chunk_get_vector(chunk, 0), row,
                        out->entry_hash, GR_HASH_LEN);
-    gr_db_vec_get_i64 (duckdb_data_chunk_get_vector(chunk, 1), row,
+    if (res == GR_OK)
+    {
+        res = gr_db_vec_get_i64 (duckdb_data_chunk_get_vector(chunk, 1), row,
                        &out->timestamp);
-    gr_db_vec_get_i32 (duckdb_data_chunk_get_vector(chunk, 2), row, &ct);
-    gr_db_vec_get_blob(duckdb_data_chunk_get_vector(chunk, 3), row,
+    }
+    if (res == GR_OK)
+    {
+        res = gr_db_vec_get_i32 (duckdb_data_chunk_get_vector(chunk, 2), row, &ct);
+    }
+    if (res == GR_OK)
+    {
+        res = gr_db_vec_get_blob(duckdb_data_chunk_get_vector(chunk, 3), row,
                        out->actor_id, GR_PEER_ID_LEN);
-    gr_db_vec_get_blob(duckdb_data_chunk_get_vector(chunk, 4), row,
+    }
+    if (res == GR_OK)
+    {
+        res = gr_db_vec_get_blob(duckdb_data_chunk_get_vector(chunk, 4), row,
                        out->target_id, GR_PEER_ID_LEN);
-    gr_db_vec_get_blob(duckdb_data_chunk_get_vector(chunk, 5), row,
+    }
+    if (res == GR_OK)
+    {
+        res = gr_db_vec_get_blob(duckdb_data_chunk_get_vector(chunk, 5), row,
                        out->signature, GR_SIGN_LEN);
-    gr_db_vec_get_i32 (duckdb_data_chunk_get_vector(chunk, 6), row, &rv);
-    gr_db_vec_get_str (duckdb_data_chunk_get_vector(chunk, 7), row,
+    }
+    if (res == GR_OK)
+    {
+        res = gr_db_vec_get_i32 (duckdb_data_chunk_get_vector(chunk, 6), row, &rv);
+    }
+    if (res == GR_OK)
+    {
+        res = gr_db_vec_get_str (duckdb_data_chunk_get_vector(chunk, 7), row,
                        out->detail, sizeof(out->detail));
-    gr_db_vec_get_blob(duckdb_data_chunk_get_vector(chunk, 8), row,
+    }
+    if (res == GR_OK)
+    {
+        res = gr_db_vec_get_blob(duckdb_data_chunk_get_vector(chunk, 8), row,
                        out->prev_hash, GR_HASH_LEN);
-    gr_db_vec_get_i64 (duckdb_data_chunk_get_vector(chunk, 9), row,
+    }
+    if (res == GR_OK)
+    {
+        res = gr_db_vec_get_i64 (duckdb_data_chunk_get_vector(chunk, 9), row,
                        &out->timestamp_ns);
-    out->change_type       = (gr_change_type_t)ct;
-    out->registrar_version = (uint32_t)rv;
+    }
+    if (res == GR_OK)
+    {
+        out->change_type       = (gr_change_type_t)ct;
+        out->registrar_version = (uint32_t)rv;
+    }
+    return res;
 }
 
 /**

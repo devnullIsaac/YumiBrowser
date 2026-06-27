@@ -78,29 +78,18 @@ bool gr_db_exec(duckdb_connection con, const char *sql) {
   return st == DuckDBSuccess;
 }
 
-/* ------------------------------------------------------------------------- *
- *  Chunk/vector accessors (no deprecated value API).
- *
- *  NOTE: In DuckDB's chunk/vector ABI, BLOB columns are laid out as
- *        duckdb_string_t (same as VARCHAR), NOT duckdb_blob.
- *        duckdb_blob is only produced by duckdb_value_blob() (deprecated).
- *
- *  Consumers must:
- *    1. Call duckdb_fetch_chunk() on the result until it returns NULL.
- *    2. For each chunk, obtain column vectors via duckdb_data_chunk_get_vector
- *       and extract values via the gr_db_vec_get_* helpers below.
- *    3. Destroy each chunk with duckdb_destroy_data_chunk().
- * ------------------------------------------------------------------------- */
-
+/*
+ * @brief Validate DuckDB Vector.
+*/
 gr_error_t gr_db_vec_valid(duckdb_vector vec, idx_t row) {
   gr_error_t ret = GR_OK;
   uint64_t *validity = duckdb_vector_get_validity(vec);
-  /* NULL validity => all rows are valid. */
-  if (validity != NULL && !duckdb_validity_row_is_valid(validity, row))
+  if (validity != NULL && duckdb_validity_row_is_valid(validity, row) == false)
     ret = GR_ERR_DB;
   return ret;
 }
 
+// @brief Obtains the blob data from specified row, but expected_len must match with blob size otherwise GR_ERR_DB error will results.
 gr_error_t gr_db_vec_get_blob(duckdb_vector vec, idx_t row, uint8_t *out,
                               idx_t expected_len) {
   gr_error_t ret = gr_db_vec_valid(vec, row);
@@ -115,30 +104,34 @@ gr_error_t gr_db_vec_get_blob(duckdb_vector vec, idx_t row, uint8_t *out,
   }
   return ret;
 }
-
+// @brief Obtains the blob data from specified row, but buf_size must have capacity to holds the blob size otherwise GR_ERR_DB error will results.
 gr_error_t gr_db_vec_get_str(duckdb_vector vec, idx_t row, char *out,
                              idx_t buf_size) {
-  if (buf_size == 0) return GR_ERR_INVALID_PARAM;
-  gr_error_t ret = gr_db_vec_valid(vec, row);
-  bool isNull = false;
-  if (ret != GR_OK) {
-    /* NULL => empty string (common for nullable VARCHAR columns). */
-    out[0] = '\0';
-    ret = GR_OK;
-    isNull = true;
-  }
-  if (isNull == false)
+  gr_error_t ret = GR_OK;
+  if (buf_size == 0) ret = GR_ERR_INVALID_PARAM;
+  if (ret == GR_OK)
   {
-    duckdb_string_t *arr = (duckdb_string_t *)duckdb_vector_get_data(vec);
-    const idx_t len = (idx_t)duckdb_string_t_length(arr[row]);
-    if (len < buf_size)
-    {
-      memcpy(out, duckdb_string_t_data(&arr[row]), len);
-      out[len] = '\0';
+    ret = gr_db_vec_valid(vec, row);
+    bool isNull = false;
+    if (ret != GR_OK) {
+      /* NULL => empty string (common for nullable VARCHAR columns). */
+      out[0] = '\0';
+      ret = GR_OK;
+      isNull = true;
     }
-    else
+    if (isNull == false)
     {
-      ret = GR_ERR_DB;
+      duckdb_string_t *arr = (duckdb_string_t *)duckdb_vector_get_data(vec);
+      const idx_t len = (idx_t)duckdb_string_t_length(arr[row]);
+      if (len < buf_size)
+      {
+        memcpy(out, duckdb_string_t_data(&arr[row]), len);
+        out[len] = '\0';
+      }
+      else
+      {
+        ret = GR_ERR_DB;
+      }
     }
   }
   return ret;
@@ -730,20 +723,12 @@ gr_error_t gr_header_load(gr_registrar_t *reg) {
         const idx_t row = 0U;
         int32_t i32 = 0;
 
-        /*  0: group_id           8: file_retention_ms
-         *  1: group_type         9: registrar_max_bytes
-         *  2: group_name        10: owner_id
-         *  3: version           11: owner_sign_key
-         *  4: created_at        12: signer_id
-         *  5: updated_at        13: signer_sign_key
-         *  6: epoch_id          14: signature
-         *  7: message_retention_ms  15: hash
-         */
-
+        // group_id
         if (ret == GR_OK) {
           ret = gr_db_vec_get_blob(duckdb_data_chunk_get_vector(chunk, 0U), row,
                                    h->group_id, GR_HASH_LEN);
         }
+        // group_type
         if (ret == GR_OK) {
           ret = gr_db_vec_get_i32(duckdb_data_chunk_get_vector(chunk, 1U), row,
                                   &i32);
@@ -751,10 +736,12 @@ gr_error_t gr_header_load(gr_registrar_t *reg) {
             h->group_type = (gr_group_type_t)i32;
           }
         }
+        // group_name
         if (ret == GR_OK) {
           ret = gr_db_vec_get_str(duckdb_data_chunk_get_vector(chunk, 2U), row,
                                   h->group_name, GR_MAX_NAME_LEN);
         }
+        // version
         if (ret == GR_OK) {
           ret = gr_db_vec_get_i32(duckdb_data_chunk_get_vector(chunk, 3U), row,
                                   &i32);
@@ -762,14 +749,17 @@ gr_error_t gr_header_load(gr_registrar_t *reg) {
             h->version = (uint32_t)i32;
           }
         }
+        // created_at
         if (ret == GR_OK) {
           ret = gr_db_vec_get_i64(duckdb_data_chunk_get_vector(chunk, 4U), row,
                                   &h->created_at);
         }
+        // updated_at
         if (ret == GR_OK) {
           ret = gr_db_vec_get_i64(duckdb_data_chunk_get_vector(chunk, 5U), row,
                                   &h->updated_at);
         }
+        // epoch_id
         if (ret == GR_OK) {
           ret = gr_db_vec_get_i32(duckdb_data_chunk_get_vector(chunk, 6U), row,
                                   &i32);
@@ -777,38 +767,47 @@ gr_error_t gr_header_load(gr_registrar_t *reg) {
             h->epoch_id = (uint32_t)i32;
           }
         }
+        // message_retention_ms
         if (ret == GR_OK) {
           ret = gr_db_vec_get_i64(duckdb_data_chunk_get_vector(chunk, 7U), row,
                                   &h->retention.message_retention_ms);
         }
+        // file_retention_ms
         if (ret == GR_OK) {
           ret = gr_db_vec_get_i64(duckdb_data_chunk_get_vector(chunk, 8U), row,
                                   &h->retention.file_retention_ms);
         }
+        // registrar_max_bytes
         if (ret == GR_OK) {
           ret = gr_db_vec_get_i64(duckdb_data_chunk_get_vector(chunk, 9U), row,
                                   &h->retention.registrar_max_bytes);
         }
+        // owner_id
         if (ret == GR_OK) {
           ret = gr_db_vec_get_blob(duckdb_data_chunk_get_vector(chunk, 10U),
                                    row, h->owner_id, GR_PEER_ID_LEN);
         }
+        // owner_sign_key
         if (ret == GR_OK) {
           ret = gr_db_vec_get_blob(duckdb_data_chunk_get_vector(chunk, 11U),
                                    row, h->owner_sign_key, GR_PUBLIC_KEY_LEN);
         }
+        // signer_id
         if (ret == GR_OK) {
           ret = gr_db_vec_get_blob(duckdb_data_chunk_get_vector(chunk, 12U),
                                    row, h->signer_id, GR_PEER_ID_LEN);
         }
+        // signer_sign_key
         if (ret == GR_OK) {
           ret = gr_db_vec_get_blob(duckdb_data_chunk_get_vector(chunk, 13U),
                                    row, h->signer_sign_key, GR_PUBLIC_KEY_LEN);
         }
+        // signature
         if (ret == GR_OK) {
           ret = gr_db_vec_get_blob(duckdb_data_chunk_get_vector(chunk, 14U),
                                    row, h->signature, GR_SIGN_LEN);
         }
+        // hash
         if (ret == GR_OK) {
           ret = gr_db_vec_get_blob(duckdb_data_chunk_get_vector(chunk, 15U),
                                    row, h->hash, GR_HASH_LEN);

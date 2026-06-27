@@ -19,7 +19,6 @@
 
 #include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <stdbool.h>
 #include <limits.h>
 #include <assert.h>
@@ -496,12 +495,15 @@ yumi_crypto_err_t yumi_frodo_decaps(
     EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_from_pkey(NULL, pkey, NULL);
     yumi_crypto_err_t rc = YUMI_CRYPTO_ERR_DECAPS;
 
-    if (!ctx) goto done;
-    if (EVP_PKEY_decapsulate_init(ctx, NULL) != 1) goto done;
+    if (!ctx)
+        goto done;
+    if (EVP_PKEY_decapsulate_init(ctx, NULL) != 1)
+        goto done;
 
     size_t ss_len = YUMI_FRODO_SHARED_SECRET_LEN;
     size_t ct_in_len = YUMI_FRODO_CIPHERTEXT_LEN;
-    if (EVP_PKEY_decapsulate(ctx, ss, &ss_len, ct, ct_in_len) != 1) goto done;
+    if (EVP_PKEY_decapsulate(ctx, ss, &ss_len, ct, ct_in_len) != 1)
+        goto done;
 
     rc = YUMI_CRYPTO_OK;
 
