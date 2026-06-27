@@ -202,6 +202,8 @@ If you need a formally reviewed cryptographic stack today, Yumi is not yet the r
 
 ### AI-Assisted Development
 
+**Note: This project is in progress of removal of all AI Generated Codes, but generated documentations may remain. This is necessary for MISRA-C compliance.**
+
 Yumi Browser is a human-developed project. The maintainer uses AI coding assistants (including Anthropic's Claude) as a tool during development — the same way a developer might use a compiler, a linter, or a static analyzer. AI is not the author of the project, does not make design decisions, and does not commit code on its own. Every AI-suggested change is read, evaluated, edited where necessary, and accepted or rejected by the human maintainer before it lands.
 
 This matters because AI assistants can produce code that looks correct but is subtly wrong. Yumi Browser treats AI output as a starting draft, not as ground truth. The project's reliance on **MISRA-C** as a coding discipline is part of how that draft is hardened: MISRA-C is a widely used set of rules for safety and security-relevant C code, originally developed for the automotive industry, and it constrains the language to a subset that is easier to reason about and harder to misuse. Combined with Frama-C static analysis (see [docs/23-development-focus.md](docs/23-development-focus.md)), it gives the project a structural check on what gets accepted into the tree — whether the initial draft came from a human or from an AI assistant. Any deviation from MISRA-C in Yumi Browser's own code is documented in [MISRA-C.md](MISRA-C.md) with the rationale.
