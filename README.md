@@ -20,6 +20,22 @@ No accounts. No sign-ups. No platform reading your mail.
 
 ---
 
+## News & Current Work
+
+### In Progress
+
+- **Networking stack rewrite** — a rewrite of the networking layer is pending and currently work in progress. See [docs/06-networking.md](docs/06-networking.md).
+- **MISRA-C migration** — the move of first-party code to MISRA-C compliance is ongoing. See [docs/23-development-focus.md](docs/23-development-focus.md) and [MISRA-C.md](MISRA-C.md).
+- **Removal of AI-generated code** — all AI-generated code is being removed from the tree as part of the MISRA-C migration. Generated documentation may remain.
+- **GUI toolkit** — the GUI toolkit remains a separate component and is being expanded.
+
+### Since Last Month
+
+- **Explored Lightweight Fault Isolation (LFI).** Evaluated as a potential sandboxing/isolation mechanism. Conclusion: promising, but too early for production use. Not adopted for now; revisit as the technology matures.
+- **Restructured the Yumi Browser codebase.** Source tree reorganization to support the MISRA-C migration and the pending networking rewrite. See [docs/22-project-structure.md](docs/22-project-structure.md).
+
+---
+
 ## The Internet Got Relationships Backwards
 
 You don't visit a website and then try to bolt your friends onto it. You start with the people, and the tools serve the group.
@@ -193,6 +209,7 @@ Yumi Browser is **alpha** software under active development by a solo maintainer
 What alpha means here:
 
 - **Dashboard/webapp separation is still work in progress.** The architecture (see [docs/09-application-model.md](docs/09-application-model.md)) calls for regular webapps to run as fully isolated, offscreen-composited instances distinct from the Dashboard supervisor. That separation is not yet 100% complete; the current preview runs the Dashboard itself acting as a webapp for demonstration purposes.
+- **The networking stack is scheduled for a rewrite.** The current secure UDP transport works end-to-end against the test harnesses, but the layer is expected to change; see [News & Current Work](#news--current-work).
 - **No independent third-party security review yet.** External cryptographic review of the AEAD composition is on the current funding plan — see [docs/23-development-focus.md](docs/23-development-focus.md).
 - **The cryptographic construction (Threefish-1024-CTR with Skein-1024-MAC under Encrypt-then-MAC) is implemented carefully against the published primitives**, and the choice of large-block / large-state primitives is a deliberate conservative bet against future cryptanalytic progress on 128-bit-block ciphers; see [docs/04-cryptography.md](docs/04-cryptography.md) and [docs/08-stability-commitment.md](docs/08-stability-commitment.md) for the rationale. The composition has not yet been externally reviewed.
 - **MISRA-C compliance and Frama-C annotations are an ongoing objective**, not a completed state, on first-party Yumi Browser code. See [docs/23-development-focus.md](docs/23-development-focus.md).
