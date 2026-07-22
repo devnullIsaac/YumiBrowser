@@ -24,15 +24,15 @@ No accounts. No sign-ups. No platform reading your mail.
 
 ### In Progress
 
-- **Networking stack rewrite** — a rewrite of the networking layer is pending and currently work in progress. See [docs/06-networking.md](docs/06-networking.md).
-- **MISRA-C migration** — the move of first-party code to MISRA-C compliance is ongoing. See [docs/23-development-focus.md](docs/23-development-focus.md) and [MISRA-C.md](MISRA-C.md).
+- **Networking stack rewrite** — a rewrite of the networking layer is pending and currently work in progress.
+- **MISRA-C migration** — the move of first-party code to MISRA-C compliance is ongoing.
 - **Removal of AI-generated code** — all AI-generated code is being removed from the tree as part of the MISRA-C migration. Generated documentation may remain.
 - **GUI toolkit** — the GUI toolkit remains a separate component and is being expanded.
 
 ### Since Last Month
 
 - **Explored Lightweight Fault Isolation (LFI).** Evaluated as a potential sandboxing/isolation mechanism. Conclusion: promising, but too early for production use. Not adopted for now; revisit as the technology matures.
-- **Restructured the Yumi Browser codebase.** Source tree reorganization to support the MISRA-C migration and the pending networking rewrite. See [docs/22-project-structure.md](docs/22-project-structure.md).
+- **Restructured the Yumi Browser codebase.** Source tree reorganization to support the MISRA-C migration and the pending networking rewrite.
 
 ---
 
